@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 40% 98%;
+    --foreground: 0 0% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 18%;
+
+    --primary: 240 33% 14%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 30% 95%;
+    --secondary-foreground: 240 33% 14%;
+
+    --muted: 225 20% 93%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 351 79% 59%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 351 79% 59%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 240 33% 14%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 351 79% 59%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 30% 20%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 240 20% 22%;
+    --sidebar-ring: 351 79% 59%;
+
+    --whatsapp: 142 70% 45%;
+    --razorpay: 197 60% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
+    @apply tracking-tight;
+  }
+}

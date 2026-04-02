@@ -1,0 +1,13 @@
+project_id = "bprewoalavbhfmolcpvk"
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.ai-report]
+verify_jwt = false
+
+[functions.ai-social]
+verify_jwt = false
+
+[functions.ai-diet]
+verify_jwt = false
