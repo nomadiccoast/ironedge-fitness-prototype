@@ -11,6 +11,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
+import { initialMembers, initialPayments, generateAttendanceRecords } from "@/data/members";
 import type { Member, Payment, AttendanceRecord } from "@/data/members";
 import MemberManagement from "@/components/dashboard/MemberManagement";
 import AttendanceTracker from "@/components/dashboard/AttendanceTracker";
@@ -43,6 +44,22 @@ const leads = [
   { name: "Kavita Singh", phone: "97012 34567", plan: "Pro", date: "Mar 9", status: "New" },
 ];
 
+const memberPie = [
+  { name: "Basic", value: 420, color: "hsl(220,9%,46%)" },
+  { name: "Pro", value: 580, color: "hsl(351,79%,59%)" },
+  { name: "Elite", value: 247, color: "hsl(240,33%,14%)" },
+];
+
+const memberGrowth = Array.from({ length: 12 }, (_, i) => ({
+  month: ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"][i],
+  members: 800 + i * 40 + Math.round(Math.random() * 30),
+}));
+
+const dailyVisitors = Array.from({ length: 30 }, (_, i) => ({
+  day: i + 1,
+  visitors: 40 + Math.round(Math.random() * 40),
+}));
+
 const statusColor: Record<string, string> = {
   New: "bg-blue-100 text-blue-700", Called: "bg-yellow-100 text-yellow-700", Converted: "bg-success/20 text-success",
   Paid: "bg-success/20 text-success", Pending: "bg-yellow-100 text-yellow-700",
@@ -62,41 +79,16 @@ export default function Dashboard() {
   const [generatedPost, setGeneratedPost] = useState("");
   const [postLoading, setPostLoading] = useState(false);
 
-  // Shared state (Initialised as empty, fetched from Supabase)
-  const [members, setMembers] = useState<Member[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Fetch data from Supabase
-  const fetchDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      const [membersRes, paymentsRes, attendanceRes] = await Promise.all([
-        supabase.from("members").select("*"),
-        supabase.from("payments").select("*"),
-        supabase.from("attendance").select("*")
-      ]);
-
-      if (membersRes.data) setMembers(membersRes.data as Member[]);
-      if (paymentsRes.data) setPayments(paymentsRes.data as Payment[]);
-      if (attendanceRes.data) setAttendance(attendanceRes.data as AttendanceRecord[]);
-    } catch (error) {
-      toast.error("Failed to sync with ShapeFit Database");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Shared state
+  const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [payments, setPayments] = useState<Payment[]>(initialPayments);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => generateAttendanceRecords());
 
   useEffect(() => {
-    if (localStorage.getItem("ironedge_auth") !== "true") {
-      navigate("/");
-    } else {
-      fetchDashboardData();
-    }
+    if (localStorage.getItem("ironedge_auth") !== "true") navigate("/login");
   }, [navigate]);
 
-  const logout = () => { localStorage.removeItem("ironedge_auth"); navigate("/"); };
+  const logout = () => { localStorage.removeItem("ironedge_auth"); navigate("/login"); };
 
   const generateReport = async () => {
     setAiLoading(true); setAiReport("");
@@ -124,17 +116,6 @@ export default function Dashboard() {
   }).length;
   const avgAttendance = members.length > 0 ? Math.round(members.reduce((s, m) => s + m.attendance, 0) / members.length) : 0;
 
-  // Pie chart data from real members
-  const memberPie = useMemo(() => {
-    const counts = { Monthly: 0, Quarterly: 0, Annual: 0 };
-    members.forEach(m => { if (m.plan in counts) counts[m.plan as keyof typeof counts]++; });
-    return [
-      { name: "Monthly", value: counts.Monthly, color: "hsl(220,9%,46%)" },
-      { name: "Quarterly", value: counts.Quarterly, color: "hsl(351,79%,59%)" },
-      { name: "Annual", value: counts.Annual, color: "hsl(240,33%,14%)" },
-    ];
-  }, [members]);
-
   // Revenue last 6 months
   const revenueData = useMemo(() => {
     const months: { month: string; revenue: number }[] = [];
@@ -143,14 +124,12 @@ export default function Dashboard() {
       const key = d.toISOString().slice(0, 7);
       const label = d.toLocaleString("en-IN", { month: "short" });
       const rev = payments.filter(p => p.date.startsWith(key)).reduce((s, p) => s + p.amount, 0);
-      months.push({ month: label, revenue: rev });
+      months.push({ month: label, revenue: rev || (165000 + (5 - i) * 10000) }); // fallback mock
     }
     return months;
   }, [payments]);
 
   const renderSection = () => {
-    if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>;
-
     switch (section) {
       case "overview":
         return (
@@ -172,7 +151,11 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {/* Renewal Alerts */}
             <RenewalAlerts members={members} />
+
+            {/* Revenue Chart */}
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-primary mb-4">Revenue — Last 6 Months</h3>
               <ResponsiveContainer width="100%" height={280}>
@@ -190,8 +173,10 @@ export default function Dashboard() {
 
       case "member-mgmt":
         return <MemberManagement members={members} setMembers={setMembers} payments={payments} setPayments={setPayments} />;
+
       case "attendance":
         return <AttendanceTracker members={members} attendance={attendance} setAttendance={setAttendance} />;
+
       case "leads":
         return (
           <div className="space-y-4">
@@ -242,6 +227,18 @@ export default function Dashboard() {
                 <p className="text-2xl font-bold text-primary">{payments.length}</p>
               </div>
             </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold text-primary mb-4">Revenue — Last 6 Months</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={revenueData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,91%)" />
+                  <XAxis dataKey="month" stroke="hsl(220,9%,46%)" fontSize={12} />
+                  <YAxis stroke="hsl(220,9%,46%)" fontSize={12} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: number) => [`₹${v.toLocaleString("en-IN")}`, "Revenue"]} />
+                  <Bar dataKey="revenue" fill="hsl(351,79%,59%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead><tr className="bg-secondary">
@@ -287,6 +284,66 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">this month</p>
               </div>
             </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold text-primary mb-4">Member Growth — Last 12 Months</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={memberGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,91%)" />
+                  <XAxis dataKey="month" stroke="hsl(220,9%,46%)" fontSize={12} />
+                  <YAxis stroke="hsl(220,9%,46%)" fontSize={12} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="members" stroke="hsl(240,33%,14%)" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+
+      case "analytics":
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: "Bounce Rate", value: "32%" },
+                { label: "Avg. Session", value: "2m 45s" },
+                { label: "Page Views", value: "8,420" },
+                { label: "Unique Visitors", value: "1,820" },
+              ].map(m => (
+                <div key={m.label} className="bg-card border border-border rounded-xl p-5">
+                  <p className="text-sm text-muted-foreground">{m.label}</p>
+                  <p className="text-2xl font-bold text-primary">{m.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold text-primary mb-4">Daily Visitors — Last 30 Days</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={dailyVisitors}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,91%)" />
+                  <XAxis dataKey="day" stroke="hsl(220,9%,46%)" fontSize={12} />
+                  <YAxis stroke="hsl(220,9%,46%)" fontSize={12} />
+                  <Tooltip />
+                  <Bar dataKey="visitors" fill="hsl(351,79%,59%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold text-primary mb-4">Top Traffic Sources</h3>
+              {[
+                { source: "Direct", pct: 38 },
+                { source: "Google", pct: 28 },
+                { source: "WhatsApp Referral", pct: 20 },
+                { source: "Instagram", pct: 14 },
+              ].map(t => (
+                <div key={t.source} className="flex items-center gap-3 mb-3">
+                  <span className="text-sm w-36 text-foreground">{t.source}</span>
+                  <div className="flex-1 bg-secondary rounded-full h-3">
+                    <div className="bg-accent h-3 rounded-full" style={{ width: `${t.pct}%` }} />
+                  </div>
+                  <span className="text-sm font-medium text-primary w-10 text-right">{t.pct}%</span>
+                </div>
+              ))}
+            </div>
           </div>
         );
 
@@ -318,9 +375,6 @@ export default function Dashboard() {
 
       case "social":
         return <SocialPostGenerator postType={postType} setPostType={setPostType} platform={platform} setPlatform={setPlatform} postContext={postContext} setPostContext={setPostContext} generatedPost={generatedPost} setGeneratedPost={setGeneratedPost} postLoading={postLoading} setPostLoading={setPostLoading} />;
-      
-      default:
-        return null;
     }
   };
 
@@ -328,7 +382,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex">
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground transform transition-transform lg:relative lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="p-4 border-b border-sidebar-border">
-          <span className="font-display font-bold text-lg">ShapeFit Gym</span>
+          <span className="font-display font-bold text-lg">IronEdge</span>
         </div>
         <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
           {sidebarItems.map(item => (
@@ -353,7 +407,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <button className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></button>
             <div>
-              <p className="font-semibold text-primary text-sm">Good morning, Prashant 👋</p>
+              <p className="font-semibold text-primary text-sm">Good morning, Vikram 👋</p>
               <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
           </div>

@@ -2,11 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Hardcoded keys to force the connection to work
 const SUPABASE_URL = 'https://femzrvriospdusyfzgto.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlbXpydnJpb3NwZHVzeWZ6Z3RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDgxMDQsImV4cCI6MjA5MDcyNDEwNH0.6DxA2nrNvWZ7bIVKCHxjKfuyC2xPM0wCN47GH9XKCN0';
 
-// TRACKER: This proves the new code is live
 console.log("🚨 TRACKER: THE HARDCODED KEYS ARE LIVE!");
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -15,4 +13,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
   }
+});
+
+// 🔥 THE TRUTH SERUM TEST: This forces a direct read the moment the app loads
+supabase.from('members').select('*').limit(1).then(response => {
+  console.log("🔥 DIRECT DATABASE TEST RESULT:", response);
 });

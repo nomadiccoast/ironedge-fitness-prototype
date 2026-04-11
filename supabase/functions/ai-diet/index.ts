@@ -24,14 +24,22 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "Indian nutritionist. Give a daily diet plan with Indian foods. 5 meals: Breakfast, Snack1, Lunch, Snack2, Dinner. Each meal: items, cal, protein/carbs/fat(g). End with daily totals. Be concise.",
+            content: `You are a certified Indian nutritionist. Generate a personalized daily diet plan in a structured format. Use Indian foods and common Indian meals. Include approximate calories and macros (protein/carbs/fat in grams) for each meal. Keep language simple, mix Hindi food names naturally. Format each meal clearly.`,
           },
           {
             role: "user",
-            content: `${name} | ${weight}kg | ${height}cm | ${age}y | Goal: ${goal}`,
+            content: `Create a diet plan for ${name}:
+- Weight: ${weight} kg
+- Height: ${height} cm
+- Age: ${age} years
+- Goal: ${goal}
+
+Provide 5 meals: Breakfast, Mid-Morning Snack, Lunch, Evening Snack, Dinner.
+For each meal give: meal name, food items, approximate calories, protein(g), carbs(g), fat(g).
+Also include total daily calories and macros at the end.`,
           },
         ],
-        max_tokens: 800,
+        max_tokens: 1200,
       }),
     });
 
