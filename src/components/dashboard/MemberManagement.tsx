@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, Download, Edit2, Trash2, X, Sparkles, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -47,6 +47,41 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const [paymentModal, setPaymentModal] = useState(false);
   const [payForm, setPayForm] = useState({ amount: 1500, method: "UPI" as "Cash" | "UPI" | "Card", plan: "Monthly" as "Monthly" | "Quarterly" | "Annual", note: "" });
   const [saving, setSaving] = useState(false);
+
+  // 🔥 THE FIX: Fetch data from Supabase immediately when the page loads
+  useEffect(() => {
+    const fetchEverything = async () => {
+      try {
+        console.log("🚨 TRACKER: Fetching data from Supabase on load...");
+        
+        // Fetch Members
+        const { data: membersData, error: membersError } = await supabase
+          .from("members")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (membersError) throw membersError;
+        if (membersData) {
+          setMembers(membersData as any);
+        }
+
+        // Fetch Payments
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from("payments")
+          .select("*")
+          .order("date", { ascending: false });
+
+        if (paymentsError) throw paymentsError;
+        if (paymentsData) {
+          setPayments(paymentsData as any);
+        }
+      } catch (error) {
+        console.error("🚨 TRACKER: Error fetching data:", error);
+      }
+    };
+
+    fetchEverything();
+  }, [setMembers, setPayments]);
 
   const filtered = members.filter(m => {
     if (planFilter !== "All" && m.plan !== planFilter) return false;
