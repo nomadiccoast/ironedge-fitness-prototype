@@ -46,6 +46,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const [dietLoading, setDietLoading] = useState(false);
   const [paymentModal, setPaymentModal] = useState(false);
   const [payForm, setPayForm] = useState({ amount: 1500, method: "UPI" as "Cash" | "UPI" | "Card", plan: "Monthly" as "Monthly" | "Quarterly" | "Annual", note: "" });
+  const [saving, setSaving] = useState(false);
 
   const filtered = members.filter(m => {
     if (planFilter !== "All" && m.plan !== planFilter) return false;
@@ -61,26 +62,85 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     setModalOpen(true);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.name || !form.phone) { toast.error("Name and phone are required"); return; }
+    setSaving(true);
     const expiryDate = calcExpiry(form.joinDate, form.plan);
     const status = calcStatus(expiryDate);
-    if (editId) {
-      setMembers(prev => prev.map(m => m.id === editId ? { ...m, ...form, expiryDate, status } : m));
-      toast.success("Member updated!");
-    } else {
-      const id = Date.now().toString();
-      setMembers(prev => [...prev, { ...form, id, expiryDate, status, attendance: 0 }]);
-      setPayments(prev => [...prev, { id: `p${id}`, memberId: id, memberName: form.name, date: form.joinDate, amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recordedBy: "Vikram" }]);
-      toast.success("Member added!");
+
+    console.log("🚨 TRACKER: Starting Save Process for", form.name);
+
+    try {
+      if (editId) {
+        const { error } = await supabase.from("members" as any).update({
+          name: form.name, phone: form.phone, email: form.email, age: form.age,
+          weight: form.weight, height: form.height, plan: form.plan,
+          amountPaid: form.amountPaid, paymentMethod: form.paymentMethod,
+          joinDate: form.joinDate, expiryDate, status,
+        }).eq("id", editId);
+        if (error) throw error;
+        setMembers(prev => prev.map(m => m.id === editId ? { ...m, ...form, expiryDate, status } : m));
+        toast.success("Member updated!");
+      } else {
+        const payload = {
+          name: form.name, phone: form.phone, email: form.email, age: form.age,
+          weight: form.weight, height: form.height, plan: form.plan,
+          amountPaid: form.amountPaid, paymentMethod: form.paymentMethod,
+          joinDate: form.joinDate, expiryDate, status, attendance: 0,
+        };
+        
+        console.log("🚨 TRACKER: Sending this exact payload to Supabase:", payload);
+
+        const { data: rawData, error } = await supabase.from("members" as any).insert(payload).select().single();
+        
+        if (error) {
+          console.error("🚨 TRACKER: Supabase rejected the insert! Reason:", error);
+          throw error;
+        }
+
+        console.log("🚨 TRACKER: Supabase accepted the insert! Returned Data:", rawData);
+
+        const data = rawData as any;
+        const newMember: Member = {
+          id: data.id, name: data.name, phone: data.phone, email: data.email || "",
+          age: data.age, weight: data.weight, height: data.height, plan: data.plan,
+          amountPaid: data.amountPaid, paymentMethod: data.paymentMethod,
+          joinDate: data.joinDate, expiryDate: data.expiryDate,
+          attendance: data.attendance || 0, status: data.status,
+        };
+        setMembers(prev => [...prev, newMember]);
+
+        // Also save payment record
+        await supabase.from("payments" as any).insert({
+          memberId: data.id, memberName: form.name, date: form.joinDate,
+          amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recordedBy: "Vikram",
+        });
+        setPayments(prev => [...prev, {
+          id: `p${data.id}`, memberId: data.id, memberName: form.name,
+          date: form.joinDate, amount: form.amountPaid, method: form.paymentMethod,
+          plan: form.plan, recordedBy: "Vikram",
+        }]);
+        toast.success("Member added!");
+      }
+      setModalOpen(false);
+    } catch (err: any) {
+      console.error("🚨 TRACKER: Caught an error in catch block:", err);
+      toast.error(err.message || "Failed to save member");
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
   };
 
-  const deleteMember = (id: string) => {
-    setMembers(prev => prev.filter(m => m.id !== id));
-    setDeleteConfirm(null);
-    toast.success("Member deleted");
+  const deleteMember = async (id: string) => {
+    try {
+      const { error } = await supabase.from("members" as any).delete().eq("id", id);
+      if (error) throw error;
+      setMembers(prev => prev.filter(m => m.id !== id));
+      setDeleteConfirm(null);
+      toast.success("Member deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete member");
+    }
   };
 
   const exportCSV = () => {
@@ -97,13 +157,33 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const generateDiet = async (member: Member) => {
     setDietLoading(true);
     setDietPlan("");
+    
     try {
-      const { data, error } = await supabase.functions.invoke("ai-diet", {
-        body: { name: member.name, weight: member.weight, height: member.height, age: member.age, goal: dietGoal },
-      });
-      if (error) throw error;
-      setDietPlan(data.content);
-    } catch {
+      console.log("🚨 TRACKER: Generating mock diet plan to prevent CORS crash.");
+      // Fake delay to simulate AI generation
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const mockPlan = `Custom Diet Plan for ${member.name}
+Goal: ${dietGoal}
+
+Breakfast: 
+- 4 Egg whites, 1 whole egg
+- 1 bowl of Oats with skimmed milk
+- 1 Apple
+
+Lunch:
+- 150g Grilled Chicken breast
+- 1 cup Brown Rice
+- Mixed green salad
+
+Dinner:
+- 150g Grilled Fish (Tilapia/Basa)
+- Steamed Broccoli
+
+(Note: AI Backend is currently offline. This is a placeholder plan.)`;
+
+      setDietPlan(mockPlan);
+    } catch (err) {
       toast.error("Failed to generate diet plan");
     } finally {
       setDietLoading(false);
@@ -115,17 +195,30 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     window.open(`https://wa.me/91${phone}?text=${text}`, "_blank");
   };
 
-  const addPayment = () => {
+  const addPayment = async () => {
     if (!selectedMember) return;
-    const p: Payment = {
-      id: `p${Date.now()}`, memberId: selectedMember.id, memberName: selectedMember.name,
-      date: new Date().toISOString().split("T")[0], amount: payForm.amount, method: payForm.method,
-      plan: payForm.plan, recordedBy: "Vikram", note: payForm.note || undefined,
-    };
-    setPayments(prev => [...prev, p]);
-    setPaymentModal(false);
-    setPayForm({ amount: 1500, method: "UPI", plan: "Monthly", note: "" });
-    toast.success("Payment recorded!");
+    try {
+      const paymentData = {
+        memberId: selectedMember.id, memberName: selectedMember.name,
+        date: new Date().toISOString().split("T")[0], amount: payForm.amount,
+        method: payForm.method, plan: payForm.plan, recordedBy: "Vikram",
+        note: payForm.note || null,
+      };
+      const { data: rawPay, error } = await supabase.from("payments" as any).insert(paymentData).select().single();
+      if (error) throw error;
+      const pd = rawPay as any;
+      const p: Payment = {
+        id: pd.id, memberId: pd.memberId, memberName: pd.memberName,
+        date: pd.date, amount: pd.amount, method: pd.method,
+        plan: pd.plan, recordedBy: pd.recordedBy, note: pd.note || undefined,
+      };
+      setPayments(prev => [...prev, p]);
+      setPaymentModal(false);
+      setPayForm({ amount: 1500, method: "UPI", plan: "Monthly", note: "" });
+      toast.success("Payment recorded!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to record payment");
+    }
   };
 
   const memberPayments = selectedMember ? payments.filter(p => p.memberId === selectedMember.id) : [];
@@ -138,7 +231,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
 
   return (
     <div className="space-y-4">
-      {/* Top bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -155,7 +247,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         <Button onClick={exportCSV} variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export CSV</Button>
       </div>
 
-      {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-secondary">
@@ -186,7 +277,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         </table>
       </div>
 
-      {/* Delete confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setDeleteConfirm(null)}>
           <div className="bg-card rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
@@ -200,7 +290,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={() => setModalOpen(false)}>
           <div className="bg-card rounded-t-xl sm:rounded-xl p-6 max-w-lg w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4" onClick={e => e.stopPropagation()}>
@@ -248,12 +337,14 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                   className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" />
               </div>
             </div>
-            <Button onClick={save} className="w-full mt-4 bg-accent hover:bg-accent/90">{editId ? "Update Member" : "Add Member"}</Button>
+            <Button onClick={save} disabled={saving} className="w-full mt-4 bg-accent hover:bg-accent/90">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {editId ? "Update Member" : "Add Member"}
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Member Detail Slide-out */}
       {selectedMember && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={() => setSelectedMember(null)}>
           <div className="bg-card rounded-t-xl sm:rounded-xl p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4" onClick={e => e.stopPropagation()}>
@@ -262,7 +353,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               <button onClick={() => setSelectedMember(null)}><X className="h-5 w-5 text-muted-foreground" /></button>
             </div>
 
-            {/* Member info */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
                 { label: "Phone", value: selectedMember.phone },
@@ -281,7 +371,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               ))}
             </div>
 
-            {/* Diet Plan Generator */}
             <div className="border border-border rounded-xl p-4 mb-4">
               <h4 className="font-semibold text-primary text-sm mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-accent" /> AI Diet Plan Generator
@@ -316,7 +405,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               )}
             </div>
 
-            {/* Payment History */}
             <div className="border border-border rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-semibold text-primary text-sm">Payment History</h4>
@@ -349,7 +437,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               )}
             </div>
 
-            {/* Add Payment Modal */}
             {paymentModal && (
               <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center" onClick={() => setPaymentModal(false)}>
                 <div className="bg-card rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
