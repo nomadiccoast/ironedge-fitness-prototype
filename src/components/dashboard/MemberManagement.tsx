@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Member, Payment } from "@/data/members";
+import posthog from "posthog-js"; // 🔥 GOD MODE IMPORTED
 
 interface Props {
   members: Member[];
@@ -155,7 +156,11 @@ export default function MemberManagement({ members, setMembers, payments, setPay
           date: form.joinDate, amount: form.amountPaid, method: form.paymentMethod,
           plan: form.plan, recordedBy: "Prashant",
         }]);
+        
         toast.success("Member added!");
+        
+        // 🔥 GOD MODE: Track when a new member is successfully added
+        posthog.capture("member_added", { plan_type: form.plan, amount_paid: form.amountPaid });
       }
       setModalOpen(false);
     } catch (err: any) {
@@ -173,6 +178,9 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       setMembers(prev => prev.filter(m => m.id !== id));
       setDeleteConfirm(null);
       toast.success("Member deleted");
+      
+      // 🔥 GOD MODE: Track when a member is deleted
+      posthog.capture("member_deleted");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete member");
     }
@@ -235,6 +243,12 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       const aiDietText = data.choices[0].message.content;
       setDietPlan(aiDietText);
       
+      // 🔥 GOD MODE: Track exactly what AI feature was used and for what goal
+      posthog.capture("used_ai_diet_generator", {
+        goal: dietGoal,
+        member_name: member.name
+      });
+      
     } catch (err) {
       console.error("Groq AI Error:", err);
       toast.error("Failed to generate real diet plan");
@@ -267,6 +281,10 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       };
       setPayments(prev => [...prev, p]);
       setPaymentModal(false);
+      
+      // 🔥 GOD MODE: Track when a payment is collected
+      posthog.capture("payment_recorded", { amount: payForm.amount, method: payForm.method, plan: payForm.plan });
+      
       setPayForm({ amount: 1500, method: "UPI", plan: "Monthly", note: "" });
       toast.success("Payment recorded!");
     } catch (err: any) {
