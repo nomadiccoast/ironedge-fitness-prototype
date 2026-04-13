@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Member, Payment } from "@/data/members";
-import posthog from "posthog-js"; // 🔥 GOD MODE IMPORTED
+import posthog from "posthog-js";
 
 interface Props {
   members: Member[];
@@ -49,13 +49,11 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const [payForm, setPayForm] = useState({ amount: 1500, method: "UPI" as "Cash" | "UPI" | "Card", plan: "Monthly" as "Monthly" | "Quarterly" | "Annual", note: "" });
   const [saving, setSaving] = useState(false);
 
-  // 🔥 THE FIX: Fetch data from Supabase immediately when the page loads
   useEffect(() => {
     const fetchEverything = async () => {
       try {
         console.log("🚨 TRACKER: Fetching data from Supabase on load...");
         
-        // Fetch Members
         const { data: membersData, error: membersError } = await supabase
           .from("members")
           .select("*")
@@ -66,7 +64,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
           setMembers(membersData as any);
         }
 
-        // Fetch Payments
         const { data: paymentsData, error: paymentsError } = await supabase
           .from("payments")
           .select("*")
@@ -104,8 +101,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     const expiryDate = calcExpiry(form.joinDate, form.plan);
     const status = calcStatus(expiryDate);
 
-    console.log("🚨 TRACKER: Starting Save Process for", form.name);
-
     try {
       if (editId) {
         const { error } = await supabase.from("members" as any).update({
@@ -125,16 +120,9 @@ export default function MemberManagement({ members, setMembers, payments, setPay
           joinDate: form.joinDate, expiryDate, status, attendance: 0,
         };
         
-        console.log("🚨 TRACKER: Sending this exact payload to Supabase:", payload);
-
         const { data: rawData, error } = await supabase.from("members" as any).insert(payload).select().single();
         
-        if (error) {
-          console.error("🚨 TRACKER: Supabase rejected the insert! Reason:", error);
-          throw error;
-        }
-
-        console.log("🚨 TRACKER: Supabase accepted the insert! Returned Data:", rawData);
+        if (error) throw error;
 
         const data = rawData as any;
         const newMember: Member = {
@@ -146,11 +134,11 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         };
         setMembers(prev => [...prev, newMember]);
 
-        // Also save payment record
         await supabase.from("payments" as any).insert({
           memberId: data.id, memberName: form.name, date: form.joinDate,
           amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recordedBy: "Prashant",
         });
+        
         setPayments(prev => [...prev, {
           id: `p${data.id}`, memberId: data.id, memberName: form.name,
           date: form.joinDate, amount: form.amountPaid, method: form.paymentMethod,
@@ -158,13 +146,10 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         }]);
         
         toast.success("Member added!");
-        
-        // 🔥 GOD MODE: Track when a new member is successfully added
         posthog.capture("member_added", { plan_type: form.plan, amount_paid: form.amountPaid });
       }
       setModalOpen(false);
     } catch (err: any) {
-      console.error("🚨 TRACKER: Caught an error in catch block:", err);
       toast.error(err.message || "Failed to save member");
     } finally {
       setSaving(false);
@@ -178,8 +163,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       setMembers(prev => prev.filter(m => m.id !== id));
       setDeleteConfirm(null);
       toast.success("Member deleted");
-      
-      // 🔥 GOD MODE: Track when a member is deleted
       posthog.capture("member_deleted");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete member");
@@ -202,23 +185,30 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     setDietPlan("");
     
     try {
-      // 1. Paste your real Groq API key here
       const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
       
-      // 2. The updated prompt forcing both Veg and Non-Veg options
-      const prompt = `You are a clinical nutritionist. 
-      Create a 1-day diet plan for ${member.name}.
-      Age: ${member.age}
-      Weight: ${member.weight} kg
-      Height: ${member.height} cm
-      Goal: ${dietGoal}
+      // 🔥 NEW SMART AI PROMPT
+      const prompt = `You are an elite clinical sports nutritionist. 
+      Create a highly personalized 1-day diet plan for ${member.name}.
       
-      Rules:
-      1. Estimate their daily calorie needs based on their stats.
-      2. Provide TWO distinct 1-day plans: Option A (Vegetarian) and Option B (Non-Vegetarian).
-      3. Provide exact portion sizes in grams (e.g., "150g chicken" or "200g paneer").
-      4. Format clearly with Breakfast, Lunch, and Dinner for both options.
-      5. Keep the response highly structured, clean, and under 250 words. Do not add conversational fluff.`;
+      CLIENT STATS:
+      - Age: ${member.age}
+      - Weight: ${member.weight} kg
+      - Height: ${member.height} cm
+      - Goal: ${dietGoal}
+      
+      INSTRUCTIONS & MATH (You MUST do this first):
+      1. Calculate their exact BMI and state it.
+      2. Calculate their estimated BMR (Basal Metabolic Rate).
+      3. Determine their Target Daily Calories based strictly on their Goal (${dietGoal}).
+      4. Calculate their exact Macro split (Protein, Carbs, Fats in grams) tailored to this goal.
+      
+      DIET PLAN FORMAT:
+      Present the Client Profile & Math clearly at the top. 
+      Then, provide TWO distinct 1-day meal plans (Option A: Vegetarian and Option B: Non-Vegetarian) that hit these exact macros.
+      Provide precise portion sizes in grams (e.g., "150g chicken breast", "200g paneer").
+      Format clearly with Breakfast, Lunch, and Dinner.
+      Keep the response structured, clean, and under 300 words. Do not add conversational fluff.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -229,10 +219,10 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "You are an expert fitness nutritionist. Output only the structured diet plan." },
+            { role: "system", content: "You are an expert clinical fitness nutritionist. You output precise math and structured diet plans." },
             { role: "user", content: prompt }
           ],
-          temperature: 0.2 // Keeps the math accurate and the format strict
+          temperature: 0.2 
         })
       });
 
@@ -243,7 +233,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       const aiDietText = data.choices[0].message.content;
       setDietPlan(aiDietText);
       
-      // 🔥 GOD MODE: Track exactly what AI feature was used and for what goal
       posthog.capture("used_ai_diet_generator", {
         goal: dietGoal,
         member_name: member.name
@@ -282,7 +271,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       setPayments(prev => [...prev, p]);
       setPaymentModal(false);
       
-      // 🔥 GOD MODE: Track when a payment is collected
       posthog.capture("payment_recorded", { amount: payForm.amount, method: payForm.method, plan: payForm.plan });
       
       setPayForm({ amount: 1500, method: "UPI", plan: "Monthly", note: "" });

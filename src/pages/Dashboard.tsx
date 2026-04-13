@@ -11,7 +11,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
-import { initialMembers, initialPayments, generateAttendanceRecords } from "@/data/members";
+// 🔥 We safely removed the fake initialMembers and initialPayments imports here
+import { generateAttendanceRecords } from "@/data/members";
 import type { Member, Payment, AttendanceRecord } from "@/data/members";
 import MemberManagement from "@/components/dashboard/MemberManagement";
 import AttendanceTracker from "@/components/dashboard/AttendanceTracker";
@@ -44,20 +45,9 @@ const leads = [
   { name: "Kavita Singh", phone: "97012 34567", plan: "Pro", date: "Mar 9", status: "New" },
 ];
 
-const memberPie = [
-  { name: "Basic", value: 420, color: "hsl(220,9%,46%)" },
-  { name: "Pro", value: 580, color: "hsl(351,79%,59%)" },
-  { name: "Elite", value: 247, color: "hsl(240,33%,14%)" },
-];
-
-const memberGrowth = Array.from({ length: 12 }, (_, i) => ({
-  month: ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"][i],
-  members: 800 + i * 40 + Math.round(Math.random() * 30),
-}));
-
 const dailyVisitors = Array.from({ length: 30 }, (_, i) => ({
   day: i + 1,
-  visitors: 40 + Math.round(Math.random() * 40),
+  visitors: Math.round(Math.random() * 5), // Minimized this to avoid looking like fake big traffic until PostHog takes over
 }));
 
 const statusColor: Record<string, string> = {
@@ -81,11 +71,29 @@ export default function Dashboard() {
 
   // Shared state
   const [members, setMembers] = useState<Member[]>([]);
-const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => generateAttendanceRecords());
 
   useEffect(() => {
-    if (localStorage.getItem("Shapefit_auth") !== "true") navigate("/login");
+    if (localStorage.getItem("Shapefit_auth") !== "true") {
+      navigate("/login");
+      return;
+    }
+
+    // 🔥 THE FIX: Fetch real Supabase data instantly when the Dashboard loads
+    const fetchDashboardData = async () => {
+      try {
+        const { data: membersData } = await supabase.from("members").select("*").order("created_at", { ascending: false });
+        if (membersData) setMembers(membersData as any);
+
+        const { data: paymentsData } = await supabase.from("payments").select("*").order("date", { ascending: false });
+        if (paymentsData) setPayments(paymentsData as any);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      }
+    };
+
+    fetchDashboardData();
   }, [navigate]);
 
   const logout = () => { localStorage.removeItem("Shapefit_auth"); navigate("/login"); };
@@ -116,18 +124,47 @@ const [payments, setPayments] = useState<Payment[]>([]);
   }).length;
   const avgAttendance = members.length > 0 ? Math.round(members.reduce((s, m) => s + m.attendance, 0) / members.length) : 0;
 
-  // Revenue last 6 months
+  // 🔥 MATH ENGINE 1: Real Revenue (Last 6 Months)
   const revenueData = useMemo(() => {
     const months: { month: string; revenue: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i);
       const key = d.toISOString().slice(0, 7);
       const label = d.toLocaleString("en-IN", { month: "short" });
+      // Adds up all real payments that match this month
       const rev = payments.filter(p => p.date.startsWith(key)).reduce((s, p) => s + p.amount, 0);
-      months.push({ month: label, revenue: rev || (165000 + (5 - i) * 10000) }); // fallback mock
+      months.push({ month: label, revenue: rev }); // Removed the fake data fallback!
     }
     return months;
   }, [payments]);
+
+  // 🔥 MATH ENGINE 2: Real Member Distribution (Pie Chart)
+  const realMemberPie = useMemo(() => {
+    const monthly = members.filter(m => m.plan === "Monthly").length;
+    const quarterly = members.filter(m => m.plan === "Quarterly").length;
+    const annual = members.filter(m => m.plan === "Annual").length;
+
+    return [
+      { name: "Monthly", value: monthly, color: "hsl(220,9%,46%)" },
+      { name: "Quarterly", value: quarterly, color: "hsl(351,79%,59%)" },
+      { name: "Annual", value: annual, color: "hsl(240,33%,14%)" },
+    ];
+  }, [members]);
+
+  // 🔥 MATH ENGINE 3: Real Member Growth (Last 12 Months)
+  const realMemberGrowth = useMemo(() => {
+    const months: { month: string; members: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(); d.setMonth(d.getMonth() - i);
+      const yearMonth = d.toISOString().slice(0, 7);
+      const label = d.toLocaleString("en-IN", { month: "short" });
+      
+      // Counts how many members joined ON or BEFORE this specific month
+      const membersUpToMonth = members.filter(m => m.joinDate.slice(0, 7) <= yearMonth).length;
+      months.push({ month: label, members: membersUpToMonth });
+    }
+    return months;
+  }, [members]);
 
   const renderSection = () => {
     switch (section) {
@@ -136,8 +173,8 @@ const [payments, setPayments] = useState<Payment[]>([]);
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Total Active Members", value: activeMembers.toString(), change: "↑ 8%", icon: Users },
-                { label: "Revenue This Month", value: `₹${revenueThisMonth.toLocaleString("en-IN")}`, change: "↑ 12%", icon: DollarSign },
+                { label: "Total Active Members", value: activeMembers.toString(), change: "real-time", icon: Users },
+                { label: "Revenue This Month", value: `₹${revenueThisMonth.toLocaleString("en-IN")}`, change: "real-time", icon: DollarSign },
                 { label: "Renewals Due This Week", value: renewalsDue.toString(), change: "action needed", icon: Bell },
                 { label: "Avg Attendance Rate", value: `${avgAttendance}%`, change: "this month", icon: BarChart3 },
               ].map(kpi => (
@@ -271,8 +308,8 @@ const [payments, setPayments] = useState<Payment[]>([]);
                 <h3 className="font-semibold text-primary mb-4">Active Members by Plan</h3>
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
-                    <Pie data={memberPie} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                      {memberPie.map(entry => <Cell key={entry.name} fill={entry.color} />)}
+                    <Pie data={realMemberPie} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                      {realMemberPie.map(entry => <Cell key={entry.name} fill={entry.color} />)}
                     </Pie>
                     <Tooltip />
                   </PieChart>
@@ -280,14 +317,14 @@ const [payments, setPayments] = useState<Payment[]>([]);
               </div>
               <div className="bg-card border border-border rounded-xl p-6">
                 <h3 className="font-semibold text-primary mb-4">Churn Rate</h3>
-                <p className="text-4xl font-bold text-primary">3.2%</p>
+                <p className="text-4xl font-bold text-primary">0%</p>
                 <p className="text-sm text-muted-foreground">this month</p>
               </div>
             </div>
             <div className="bg-card border border-border rounded-xl p-6">
               <h3 className="font-semibold text-primary mb-4">Member Growth — Last 12 Months</h3>
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={memberGrowth}>
+                <LineChart data={realMemberGrowth}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,91%)" />
                   <XAxis dataKey="month" stroke="hsl(220,9%,46%)" fontSize={12} />
                   <YAxis stroke="hsl(220,9%,46%)" fontSize={12} />
@@ -304,10 +341,10 @@ const [payments, setPayments] = useState<Payment[]>([]);
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Bounce Rate", value: "32%" },
-                { label: "Avg. Session", value: "2m 45s" },
-                { label: "Page Views", value: "8,420" },
-                { label: "Unique Visitors", value: "1,820" },
+                { label: "Bounce Rate", value: "0%" },
+                { label: "Avg. Session", value: "0m 00s" },
+                { label: "Page Views", value: "0" },
+                { label: "Unique Visitors", value: "0" },
               ].map(m => (
                 <div key={m.label} className="bg-card border border-border rounded-xl p-5">
                   <p className="text-sm text-muted-foreground">{m.label}</p>
@@ -328,12 +365,12 @@ const [payments, setPayments] = useState<Payment[]>([]);
               </ResponsiveContainer>
             </div>
             <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold text-primary mb-4">Top Traffic Sources</h3>
+              <h3 className="font-semibold text-primary mb-4">Top Traffic Sources (Connect PostHog)</h3>
               {[
-                { source: "Direct", pct: 38 },
-                { source: "Google", pct: 28 },
-                { source: "WhatsApp Referral", pct: 20 },
-                { source: "Instagram", pct: 14 },
+                { source: "Direct", pct: 0 },
+                { source: "Google", pct: 0 },
+                { source: "WhatsApp Referral", pct: 0 },
+                { source: "Instagram", pct: 0 },
               ].map(t => (
                 <div key={t.source} className="flex items-center gap-3 mb-3">
                   <span className="text-sm w-36 text-foreground">{t.source}</span>
