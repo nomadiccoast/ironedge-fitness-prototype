@@ -11,8 +11,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
-// 🔥 We safely removed the fake initialMembers and initialPayments imports here
-import { generateAttendanceRecords } from "@/data/members";
+// ✅ Cleaned up imports: removed fake data functions
 import type { Member, Payment, AttendanceRecord } from "@/data/members";
 import MemberManagement from "@/components/dashboard/MemberManagement";
 import AttendanceTracker from "@/components/dashboard/AttendanceTracker";
@@ -47,7 +46,7 @@ const leads = [
 
 const dailyVisitors = Array.from({ length: 30 }, (_, i) => ({
   day: i + 1,
-  visitors: Math.round(Math.random() * 5), // Minimized this to avoid looking like fake big traffic until PostHog takes over
+  visitors: Math.round(Math.random() * 5),
 }));
 
 const statusColor: Record<string, string> = {
@@ -69,10 +68,10 @@ export default function Dashboard() {
   const [generatedPost, setGeneratedPost] = useState("");
   const [postLoading, setPostLoading] = useState(false);
 
-  // Shared state
+  // Shared state - All initialized to empty arrays for real data
   const [members, setMembers] = useState<Member[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => generateAttendanceRecords());
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
   useEffect(() => {
     if (localStorage.getItem("Shapefit_auth") !== "true") {
@@ -80,7 +79,6 @@ export default function Dashboard() {
       return;
     }
 
-    // 🔥 THE FIX: Fetch real Supabase data instantly when the Dashboard loads
     const fetchDashboardData = async () => {
       try {
         const { data: membersData } = await supabase.from("members").select("*").order("created_at", { ascending: false });
@@ -114,7 +112,7 @@ export default function Dashboard() {
     return true;
   });
 
-  // KPI computations
+  // KPI computations using real data
   const activeMembers = members.filter(m => m.status === "Active" || m.status === "Expiring Soon").length;
   const currentMonth = new Date().toISOString().slice(0, 7);
   const revenueThisMonth = payments.filter(p => p.date.startsWith(currentMonth)).reduce((s, p) => s + p.amount, 0);
@@ -122,23 +120,22 @@ export default function Dashboard() {
     const diff = (new Date(m.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
     return diff >= 0 && diff <= 7;
   }).length;
-  const avgAttendance = members.length > 0 ? Math.round(members.reduce((s, m) => s + m.attendance, 0) / members.length) : 0;
+  const avgAttendance = members.length > 0 ? Math.round(members.reduce((s, m) => s + (m.attendance || 0), 0) / members.length) : 0;
 
-  // 🔥 MATH ENGINE 1: Real Revenue (Last 6 Months)
+  // Real Revenue Data
   const revenueData = useMemo(() => {
     const months: { month: string; revenue: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i);
       const key = d.toISOString().slice(0, 7);
       const label = d.toLocaleString("en-IN", { month: "short" });
-      // Adds up all real payments that match this month
       const rev = payments.filter(p => p.date.startsWith(key)).reduce((s, p) => s + p.amount, 0);
-      months.push({ month: label, revenue: rev }); // Removed the fake data fallback!
+      months.push({ month: label, revenue: rev });
     }
     return months;
   }, [payments]);
 
-  // 🔥 MATH ENGINE 2: Real Member Distribution (Pie Chart)
+  // Real Member Distribution
   const realMemberPie = useMemo(() => {
     const monthly = members.filter(m => m.plan === "Monthly").length;
     const quarterly = members.filter(m => m.plan === "Quarterly").length;
@@ -151,15 +148,13 @@ export default function Dashboard() {
     ];
   }, [members]);
 
-  // 🔥 MATH ENGINE 3: Real Member Growth (Last 12 Months)
+  // Real Growth Engine
   const realMemberGrowth = useMemo(() => {
     const months: { month: string; members: number }[] = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i);
       const yearMonth = d.toISOString().slice(0, 7);
       const label = d.toLocaleString("en-IN", { month: "short" });
-      
-      // Counts how many members joined ON or BEFORE this specific month
       const membersUpToMonth = members.filter(m => m.joinDate.slice(0, 7) <= yearMonth).length;
       months.push({ month: label, members: membersUpToMonth });
     }
@@ -189,10 +184,8 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* Renewal Alerts */}
             <RenewalAlerts members={members} />
 
-            {/* Revenue Chart */}
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-primary mb-4">Revenue — Last 6 Months</h3>
               <ResponsiveContainer width="100%" height={280}>
@@ -363,23 +356,6 @@ export default function Dashboard() {
                   <Bar dataKey="visitors" fill="hsl(351,79%,59%)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold text-primary mb-4">Top Traffic Sources (Connect PostHog)</h3>
-              {[
-                { source: "Direct", pct: 0 },
-                { source: "Google", pct: 0 },
-                { source: "WhatsApp Referral", pct: 0 },
-                { source: "Instagram", pct: 0 },
-              ].map(t => (
-                <div key={t.source} className="flex items-center gap-3 mb-3">
-                  <span className="text-sm w-36 text-foreground">{t.source}</span>
-                  <div className="flex-1 bg-secondary rounded-full h-3">
-                    <div className="bg-accent h-3 rounded-full" style={{ width: `${t.pct}%` }} />
-                  </div>
-                  <span className="text-sm font-medium text-primary w-10 text-right">{t.pct}%</span>
-                </div>
-              ))}
             </div>
           </div>
         );
