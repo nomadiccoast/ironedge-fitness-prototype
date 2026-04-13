@@ -11,11 +11,14 @@ export default function Login() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === "shapefit1" && password === "growsia1") {
+    
+    // 🔥 CHANGE YOUR LOGIN DETAILS HERE
+    if (email === "shapefit1" && password === "bygrowsia") {
       localStorage.setItem("ironedge_auth", "true");
       navigate("/dashboard");
     } else {
-      toast.error("Invalid credentials. Try shapefit1 / growsia1");
+      // Fixed the error message so it doesn't reveal your password!
+      toast.error("Invalid credentials. Please try again.");
     }
   };
 
@@ -25,17 +28,18 @@ export default function Login() {
         <div className="text-center mb-8">
           <Dumbbell className="h-10 w-10 text-accent mx-auto mb-3" />
           <h1 className="text-2xl font-display font-bold text-primary">Owner Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in to manage IronEdge Fitness</p>
+          {/* Changed branding from IronEdge to ShapeFit */}
+          <p className="text-sm text-muted-foreground mt-1">Sign in to manage ShapeFit</p>
         </div>
         <form onSubmit={handleLogin} className="bg-card border border-border rounded-2xl p-6 space-y-4 shadow-sm">
           <div>
-            <label className="text-sm font-medium text-foreground">Email</label>
+            <label className="text-sm font-medium text-foreground">Email / Username</label>
             <input
-              type="email"
+              type="text" // Changed from email to text in case you just want a username
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full mt-1 border border-border rounded-lg px-4 py-2.5 text-sm bg-background"
-              placeholder="owner@ironedge.com"
+              placeholder="admin"
               required
             />
           </div>
@@ -53,7 +57,6 @@ export default function Login() {
           <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
             <LogIn className="h-4 w-4" /> Sign In
           </Button>
-        
         </form>
       </div>
     </div>
