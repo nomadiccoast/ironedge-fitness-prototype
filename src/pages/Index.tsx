@@ -160,10 +160,10 @@ export default function Index() {
       {/* Google Maps */}
       <section className="container py-16 md:py-24">
         <h2 className="text-3xl font-display font-bold text-primary text-center mb-2">Find Us</h2>
-        <p className="text-muted-foreground text-center mb-8">Civil Lines, Prayagraj</p>
+        <p className="text-muted-foreground text-center mb-8">Naini, Prayagraj</p>
         <div className="rounded-2xl overflow-hidden shadow-lg border border-border">
           <iframe
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d14428.982459092697!2d81.8462!3d25.4358!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x399acb00c13b1a3f%3A0x7e5c6e2a0a7b1d3a!2sCivil%20Lines%2C%20Prayagraj%2C%20Uttar%20Pradesh!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin"
+            src="https://maps.app.goo.gl/McGiZNMu26SN2k3t9"
             className="w-full h-64 md:h-80"
             style={{ border: 0 }}
             allowFullScreen
@@ -175,15 +175,15 @@ export default function Index() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-center">
           <div className="p-4 rounded-xl bg-card border border-border">
             <p className="font-semibold text-primary">📍 Address</p>
-            <p className="text-sm text-muted-foreground">Civil Lines, Prayagraj, UP 211001</p>
+            <p className="text-sm text-muted-foreground">Mama bhanja talab, Rewa Rd, Naini, Prayagraj, UP 212111</p>
           </div>
           <div className="p-4 rounded-xl bg-card border border-border">
             <p className="font-semibold text-primary">📞 Phone</p>
-            <p className="text-sm text-muted-foreground">+91 99999 99999</p>
+            <p className="text-sm text-muted-foreground">+91 8181838352</p>
           </div>
           <div className="p-4 rounded-xl bg-card border border-border">
             <p className="font-semibold text-primary">📧 Email</p>
-            <p className="text-sm text-muted-foreground">hello@Shapefit.in</p>
+            <p className="text-sm text-muted-foreground">info@growisa.in</p>
           </div>
         </div>
       </section>

@@ -40,9 +40,9 @@ export default function Contact() {
 
             <div className="space-y-4 mb-8">
               {[
-                { icon: MapPin, text: "Civil Lines, Prayagraj, UP" },
-                { icon: Phone, text: "+91 98765 43210" },
-                { icon: Mail, text: "hello@growisa.in" },
+                { icon: MapPin, text: "Mama bhanja talab ,Rewa Rd, Naini, Prayagraj, Uttar Pradesh 212111" },
+                { icon: Phone, text: "+91 8181838352" },
+                { icon: Mail, text: "info@growisa.in" },
                 { icon: Clock, text: "Response within 24 hours" },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3 text-foreground">
@@ -52,7 +52,7 @@ export default function Contact() {
               ))}
             </div>
 
-            <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/918181838352" target="_blank" rel="noopener noreferrer">
               <Button size="lg" className="bg-whatsapp hover:bg-whatsapp/90 text-white gap-2 w-full md:w-auto">
                 <MessageCircle className="h-5 w-5" /> Chat on WhatsApp
               </Button>
