@@ -80,8 +80,8 @@ export default function Dashboard() {
   const [postLoading, setPostLoading] = useState(false);
 
   // Shared state
-  const [members, setMembers] = useState<Member[]>(initialMembers);
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
+  const [members, setMembers] = useState<Member[]>([]);
+const [payments, setPayments] = useState<Payment[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => generateAttendanceRecords());
 
   useEffect(() => {

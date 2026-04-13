@@ -148,12 +148,12 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         // Also save payment record
         await supabase.from("payments" as any).insert({
           memberId: data.id, memberName: form.name, date: form.joinDate,
-          amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recordedBy: "Vikram",
+          amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recordedBy: "Prashant",
         });
         setPayments(prev => [...prev, {
           id: `p${data.id}`, memberId: data.id, memberName: form.name,
           date: form.joinDate, amount: form.amountPaid, method: form.paymentMethod,
-          plan: form.plan, recordedBy: "Vikram",
+          plan: form.plan, recordedBy: "Prashant",
         }]);
         toast.success("Member added!");
       }
@@ -194,32 +194,50 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     setDietPlan("");
     
     try {
-      console.log("🚨 TRACKER: Generating mock diet plan to prevent CORS crash.");
-      // Fake delay to simulate AI generation
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 1. Paste your real Groq API key here
+      const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
       
-      const mockPlan = `Custom Diet Plan for ${member.name}
-Goal: ${dietGoal}
+      // 2. The updated prompt forcing both Veg and Non-Veg options
+      const prompt = `You are a clinical nutritionist. 
+      Create a 1-day diet plan for ${member.name}.
+      Age: ${member.age}
+      Weight: ${member.weight} kg
+      Height: ${member.height} cm
+      Goal: ${dietGoal}
+      
+      Rules:
+      1. Estimate their daily calorie needs based on their stats.
+      2. Provide TWO distinct 1-day plans: Option A (Vegetarian) and Option B (Non-Vegetarian).
+      3. Provide exact portion sizes in grams (e.g., "150g chicken" or "200g paneer").
+      4. Format clearly with Breakfast, Lunch, and Dinner for both options.
+      5. Keep the response highly structured, clean, and under 250 words. Do not add conversational fluff.`;
 
-Breakfast: 
-- 4 Egg whites, 1 whole egg
-- 1 bowl of Oats with skimmed milk
-- 1 Apple
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are an expert fitness nutritionist. Output only the structured diet plan." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.2 // Keeps the math accurate and the format strict
+        })
+      });
 
-Lunch:
-- 150g Grilled Chicken breast
-- 1 cup Brown Rice
-- Mixed green salad
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error?.message || "Failed to fetch from Groq");
 
-Dinner:
-- 150g Grilled Fish (Tilapia/Basa)
-- Steamed Broccoli
-
-(Note: AI Backend is currently offline. This is a placeholder plan.)`;
-
-      setDietPlan(mockPlan);
+      const aiDietText = data.choices[0].message.content;
+      setDietPlan(aiDietText);
+      
     } catch (err) {
-      toast.error("Failed to generate diet plan");
+      console.error("Groq AI Error:", err);
+      toast.error("Failed to generate real diet plan");
     } finally {
       setDietLoading(false);
     }
@@ -236,7 +254,7 @@ Dinner:
       const paymentData = {
         memberId: selectedMember.id, memberName: selectedMember.name,
         date: new Date().toISOString().split("T")[0], amount: payForm.amount,
-        method: payForm.method, plan: payForm.plan, recordedBy: "Vikram",
+        method: payForm.method, plan: payForm.plan, recordedBy: "Prashant",
         note: payForm.note || null,
       };
       const { data: rawPay, error } = await supabase.from("payments" as any).insert(paymentData).select().single();

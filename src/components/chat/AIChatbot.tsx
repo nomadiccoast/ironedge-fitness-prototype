@@ -62,7 +62,7 @@ export default function AIChatbot() {
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
               <div>
-                <p className="text-sm font-semibold">IronEdge AI Assistant</p>
+                <p className="text-sm font-semibold">Shapefit Gym</p>
                 <p className="text-xs flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-success inline-block" /> Online
                 </p>

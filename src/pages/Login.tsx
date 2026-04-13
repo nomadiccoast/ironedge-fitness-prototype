@@ -11,11 +11,11 @@ export default function Login() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === "owner@ironedge.com" && password === "webvo123") {
+    if (email === "shapefit1" && password === "growsia1") {
       localStorage.setItem("ironedge_auth", "true");
       navigate("/dashboard");
     } else {
-      toast.error("Invalid credentials. Try owner@ironedge.com / webvo123");
+      toast.error("Invalid credentials. Try shapefit1 / growsia1");
     }
   };
 
@@ -53,9 +53,7 @@ export default function Login() {
           <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
             <LogIn className="h-4 w-4" /> Sign In
           </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            Demo: owner@ironedge.com / webvo123
-          </p>
+        
         </form>
       </div>
     </div>
