@@ -11,7 +11,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
-// ✅ Cleaned up imports: removed fake data functions
 import type { Member, Payment, AttendanceRecord } from "@/data/members";
 import MemberManagement from "@/components/dashboard/MemberManagement";
 import AttendanceTracker from "@/components/dashboard/AttendanceTracker";
@@ -33,26 +32,18 @@ const sidebarItems: { id: Section; label: string; icon: any }[] = [
   { id: "social", label: "Social Posts", icon: Megaphone },
 ];
 
-const leads = [
-  { name: "Ankit Gupta", phone: "98765 43210", plan: "Pro", date: "Mar 15", status: "New" },
-  { name: "Sneha Yadav", phone: "91234 56789", plan: "Elite", date: "Mar 14", status: "Called" },
-  { name: "Ravi Kumar", phone: "97654 32100", plan: "Basic", date: "Mar 14", status: "Converted" },
-  { name: "Pooja Mishra", phone: "93456 78901", plan: "Pro", date: "Mar 13", status: "New" },
-  { name: "Deepak Tiwari", phone: "99876 54321", plan: "Pro", date: "Mar 12", status: "Called" },
-  { name: "Nisha Agarwal", phone: "90123 45678", plan: "Elite", date: "Mar 11", status: "Converted" },
-  { name: "Vikas Pandey", phone: "98012 34567", plan: "Basic", date: "Mar 10", status: "New" },
-  { name: "Kavita Singh", phone: "97012 34567", plan: "Pro", date: "Mar 9", status: "New" },
-];
+const statusColor: Record<string, string> = {
+  New: "bg-blue-100 text-blue-700", 
+  Called: "bg-yellow-100 text-yellow-700", 
+  Converted: "bg-success/20 text-success",
+  Paid: "bg-success/20 text-success", 
+  Pending: "bg-yellow-100 text-yellow-700",
+};
 
 const dailyVisitors = Array.from({ length: 30 }, (_, i) => ({
   day: i + 1,
   visitors: Math.round(Math.random() * 5),
 }));
-
-const statusColor: Record<string, string> = {
-  New: "bg-blue-100 text-blue-700", Called: "bg-yellow-100 text-yellow-700", Converted: "bg-success/20 text-success",
-  Paid: "bg-success/20 text-success", Pending: "bg-yellow-100 text-yellow-700",
-};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -68,10 +59,11 @@ export default function Dashboard() {
   const [generatedPost, setGeneratedPost] = useState("");
   const [postLoading, setPostLoading] = useState(false);
 
-  // Shared state - All initialized to empty arrays for real data
+  // Shared state
   const [members, setMembers] = useState<Member[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [realLeads, setRealLeads] = useState<any[]>([]);
 
   useEffect(() => {
     if (localStorage.getItem("Shapefit_auth") !== "true") {
@@ -86,6 +78,9 @@ export default function Dashboard() {
 
         const { data: paymentsData } = await supabase.from("payments").select("*").order("date", { ascending: false });
         if (paymentsData) setPayments(paymentsData as any);
+
+        const { data: leadsData } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+        if (leadsData) setRealLeads(leadsData);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       }
@@ -106,13 +101,13 @@ export default function Dashboard() {
     finally { setAiLoading(false); }
   };
 
-  const filteredLeads = leads.filter(l => {
+  const filteredLeads = realLeads.filter(l => {
     if (leadFilter !== "All" && l.status !== leadFilter) return false;
     if (leadSearch && !l.name.toLowerCase().includes(leadSearch.toLowerCase())) return false;
     return true;
   });
 
-  // KPI computations using real data
+  // KPI computations
   const activeMembers = members.filter(m => m.status === "Active" || m.status === "Expiring Soon").length;
   const currentMonth = new Date().toISOString().slice(0, 7);
   const revenueThisMonth = payments.filter(p => p.date.startsWith(currentMonth)).reduce((s, p) => s + p.amount, 0);
@@ -122,7 +117,7 @@ export default function Dashboard() {
   }).length;
   const avgAttendance = members.length > 0 ? Math.round(members.reduce((s, m) => s + (m.attendance || 0), 0) / members.length) : 0;
 
-  // Real Revenue Data
+  // Revenue last 6 months
   const revenueData = useMemo(() => {
     const months: { month: string; revenue: number }[] = [];
     for (let i = 5; i >= 0; i--) {
@@ -135,20 +130,16 @@ export default function Dashboard() {
     return months;
   }, [payments]);
 
-  // Real Member Distribution
+  // Member Pie
   const realMemberPie = useMemo(() => {
-    const monthly = members.filter(m => m.plan === "Monthly").length;
-    const quarterly = members.filter(m => m.plan === "Quarterly").length;
-    const annual = members.filter(m => m.plan === "Annual").length;
-
     return [
-      { name: "Monthly", value: monthly, color: "hsl(220,9%,46%)" },
-      { name: "Quarterly", value: quarterly, color: "hsl(351,79%,59%)" },
-      { name: "Annual", value: annual, color: "hsl(240,33%,14%)" },
+      { name: "Monthly", value: members.filter(m => m.plan === "Monthly").length, color: "hsl(220,9%,46%)" },
+      { name: "Quarterly", value: members.filter(m => m.plan === "Quarterly").length, color: "hsl(351,79%,59%)" },
+      { name: "Annual", value: members.filter(m => m.plan === "Annual").length, color: "hsl(240,33%,14%)" },
     ];
   }, [members]);
 
-  // Real Growth Engine
+  // Member Growth
   const realMemberGrowth = useMemo(() => {
     const months: { month: string; members: number }[] = [];
     for (let i = 11; i >= 0; i--) {
@@ -170,8 +161,8 @@ export default function Dashboard() {
               {[
                 { label: "Total Active Members", value: activeMembers.toString(), change: "real-time", icon: Users },
                 { label: "Revenue This Month", value: `₹${revenueThisMonth.toLocaleString("en-IN")}`, change: "real-time", icon: DollarSign },
-                { label: "Renewals Due This Week", value: renewalsDue.toString(), change: "action needed", icon: Bell },
-                { label: "Avg Attendance Rate", value: `${avgAttendance}%`, change: "this month", icon: BarChart3 },
+                { label: "Renewals Due", value: renewalsDue.toString(), change: "action needed", icon: Bell },
+                { label: "Total Leads", value: realLeads.length.toString(), change: "web traffic", icon: BarChart3 },
               ].map(kpi => (
                 <div key={kpi.label} className="bg-card border border-border rounded-xl p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-2">
@@ -224,20 +215,25 @@ export default function Dashboard() {
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead><tr className="bg-secondary">
-                  {["Name", "Phone", "Plan", "Date", "Status"].map(h =>
+                  {["Name", "Phone", "Gym Name", "City", "Date", "Status"].map(h =>
                     <th key={h} className="px-4 py-3 text-left text-muted-foreground font-medium">{h}</th>
                   )}
                 </tr></thead>
                 <tbody>
-                  {filteredLeads.map((l, i) => (
-                    <tr key={i} className="border-t border-border">
-                      <td className="px-4 py-3 font-medium text-primary">{l.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{l.phone}</td>
-                      <td className="px-4 py-3">{l.plan}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{l.date}</td>
-                      <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor[l.status]}`}>{l.status}</span></td>
-                    </tr>
-                  ))}
+                  {filteredLeads.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">No leads found in database.</td></tr>
+                  ) : (
+                    filteredLeads.map((l, i) => (
+                      <tr key={i} className="border-t border-border">
+                        <td className="px-4 py-3 font-medium text-primary">{l.name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{l.phone}</td>
+                        <td className="px-4 py-3">{l.gym_name || "—"}</td>
+                        <td className="px-4 py-3">{l.city || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{new Date(l.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</td>
+                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor[l.status] || "bg-secondary text-foreground"}`}>{l.status}</span></td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -356,6 +352,23 @@ export default function Dashboard() {
                   <Bar dataKey="visitors" fill="hsl(351,79%,59%)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold text-primary mb-4">Top Traffic Sources</h3>
+              {[
+                { source: "Direct", pct: 0 },
+                { source: "Google", pct: 0 },
+                { source: "WhatsApp Referral", pct: 0 },
+                { source: "Instagram", pct: 0 },
+              ].map(t => (
+                <div key={t.source} className="flex items-center gap-3 mb-3">
+                  <span className="text-sm w-36 text-foreground">{t.source}</span>
+                  <div className="flex-1 bg-secondary rounded-full h-3">
+                    <div className="bg-accent h-3 rounded-full" style={{ width: `${t.pct}%` }} />
+                  </div>
+                  <span className="text-sm font-medium text-primary w-10 text-right">{t.pct}%</span>
+                </div>
+              ))}
             </div>
           </div>
         );
