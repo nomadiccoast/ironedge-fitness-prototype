@@ -161,9 +161,9 @@ export default function Index() {
       <section className="container py-16 md:py-24">
         <h2 className="text-3xl font-display font-bold text-primary text-center mb-2">Find Us</h2>
         <p className="text-muted-foreground text-center mb-8">Naini, Prayagraj</p>
-        <div className="rounded-2xl overflow-hidden shadow-lg border border-border">
+       <div className="rounded-2xl overflow-hidden shadow-lg border border-border">
           <iframe
-            src="https://maps.app.goo.gl/McGiZNMu26SN2k3t9"
+            src="https://maps.google.com/maps?q=Mama+bhanja+talab,+Rewa+Rd,+Naini,+Prayagraj&t=&z=15&ie=UTF8&iwloc=&output=embed"
             className="w-full h-64 md:h-80"
             style={{ border: 0 }}
             allowFullScreen
