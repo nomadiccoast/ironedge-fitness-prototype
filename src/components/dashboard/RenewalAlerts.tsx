@@ -14,7 +14,7 @@ export default function RenewalAlerts({ members }: Props) {
   });
 
   const sendReminder = (m: typeof expiringSoon[0]) => {
-    const msg = encodeURIComponent(`Hey ${m.name}! Your IronEdge membership expires in ${m.daysLeft} days. Renew now to keep your streak going 💪 Reply here or call us.`);
+    const msg = encodeURIComponent(`Hey ${m.name}! Your Shapefit membership expires in ${m.daysLeft} days. Renew now to keep your streak going 💪 Reply here or call us.`);
     window.open(`https://wa.me/91${m.phone}?text=${msg}`, "_blank");
   };
 

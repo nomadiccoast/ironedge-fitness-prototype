@@ -10,7 +10,7 @@ export default function Footer() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Dumbbell className="h-6 w-6 text-accent" />
-              <span className="font-display font-bold text-lg">IronEdge Fitness</span>
+              <span className="font-display font-bold text-lg">Shapefit Fitness</span>
             </div>
             <p className="text-sm text-primary-foreground/70">
               Prayagraj's Smartest Gym — AI-powered fitness for everyone.
@@ -38,7 +38,7 @@ export default function Footer() {
             <h4 className="font-semibold mb-3">Contact</h4>
             <div className="space-y-2 text-sm text-primary-foreground/70">
               <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> +91 99999 99999</div>
-              <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> hello@ironedge.in</div>
+              <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> hello@Shapefit.in</div>
               <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Civil Lines, Prayagraj, UP</div>
             </div>
           </div>
@@ -56,8 +56,8 @@ export default function Footer() {
 
         <div className="border-t border-primary-foreground/10 mt-8 pt-6 text-center text-sm text-primary-foreground/50">
           Website built by{" "}
-          <a href="https://webvo.in" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-            Webvo
+          <a href="https://growisa.in" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+            growisa
           </a>{" "}
           — AI-Powered Web Agency
         </div>

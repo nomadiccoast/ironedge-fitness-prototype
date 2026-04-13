@@ -18,7 +18,7 @@ export default function Navbar() {
       <div className="container flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2">
           <Dumbbell className="h-7 w-7 text-accent" />
-          <span className="font-display font-bold text-xl text-primary">IronEdge Fitness</span>
+          <span className="font-display font-bold text-xl text-primary">Shapefit Fitness</span>
         </Link>
 
         {/* Desktop */}

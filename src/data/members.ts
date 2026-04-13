@@ -59,14 +59,14 @@ export const initialMembers: Member[] = [
 ];
 
 export const initialPayments: Payment[] = [
-  { id: "p1", memberId: "1", memberName: "Rahul Verma", date: "2025-01-10", amount: 4500, method: "UPI", plan: "Quarterly", recordedBy: "Vikram" },
-  { id: "p2", memberId: "2", memberName: "Priya Singh", date: "2025-06-01", amount: 12000, method: "Card", plan: "Annual", recordedBy: "Vikram" },
-  { id: "p3", memberId: "3", memberName: "Amit Srivastava", date: "2026-02-15", amount: 1500, method: "Cash", plan: "Monthly", recordedBy: "Vikram" },
-  { id: "p4", memberId: "4", memberName: "Sneha Yadav", date: "2026-01-01", amount: 4500, method: "UPI", plan: "Quarterly", recordedBy: "Vikram" },
-  { id: "p5", memberId: "5", memberName: "Deepak Tiwari", date: "2025-09-01", amount: 12000, method: "Card", plan: "Annual", recordedBy: "Vikram" },
-  { id: "p6", memberId: "6", memberName: "Kavita Rani", date: "2026-03-01", amount: 1500, method: "UPI", plan: "Monthly", recordedBy: "Vikram" },
-  { id: "p7", memberId: "5", memberName: "Deepak Tiwari", date: "2026-03-10", amount: 2000, method: "UPI", plan: "Quarterly", recordedBy: "Vikram", note: "Upgrade payment" },
-  { id: "p8", memberId: "2", memberName: "Priya Singh", date: "2026-03-05", amount: 1500, method: "Card", plan: "Monthly", recordedBy: "Vikram", note: "Personal training add-on" },
+  { id: "p1", memberId: "1", memberName: "Rahul Verma", date: "2025-01-10", amount: 4500, method: "UPI", plan: "Quarterly", recordedBy: "Prashant" },
+  { id: "p2", memberId: "2", memberName: "Priya Singh", date: "2025-06-01", amount: 12000, method: "Card", plan: "Annual", recordedBy: "Prashant" },
+  { id: "p3", memberId: "3", memberName: "Amit Srivastava", date: "2026-02-15", amount: 1500, method: "Cash", plan: "Monthly", recordedBy: "Prashant" },
+  { id: "p4", memberId: "4", memberName: "Sneha Yadav", date: "2026-01-01", amount: 4500, method: "UPI", plan: "Quarterly", recordedBy: "Prashant" },
+  { id: "p5", memberId: "5", memberName: "Deepak Tiwari", date: "2025-09-01", amount: 12000, method: "Card", plan: "Annual", recordedBy: "Prashant" },
+  { id: "p6", memberId: "6", memberName: "Kavita Rani", date: "2026-03-01", amount: 1500, method: "UPI", plan: "Monthly", recordedBy: "Prashant" },
+  { id: "p7", memberId: "5", memberName: "Deepak Tiwari", date: "2026-03-10", amount: 2000, method: "UPI", plan: "Quarterly", recordedBy: "Prashant", note: "Upgrade payment" },
+  { id: "p8", memberId: "2", memberName: "Priya Singh", date: "2026-03-05", amount: 1500, method: "Card", plan: "Monthly", recordedBy: "Prashant", note: "Personal training add-on" },
 ];
 
 // Generate some attendance records for the current month

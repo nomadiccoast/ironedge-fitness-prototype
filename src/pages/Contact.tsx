@@ -35,14 +35,14 @@ export default function Contact() {
           <div>
             <h1 className="text-4xl font-display font-bold text-primary mb-3">Let's Build Your Gym's Website</h1>
             <p className="text-muted-foreground mb-8">
-              We're Webvo — we build AI-powered websites for gyms across India. Fill in the form and we'll get back within 24 hours.
+              We're growisa — we build AI-powered websites for gyms across India. Fill in the form and we'll get back within 24 hours.
             </p>
 
             <div className="space-y-4 mb-8">
               {[
                 { icon: MapPin, text: "Civil Lines, Prayagraj, UP" },
                 { icon: Phone, text: "+91 98765 43210" },
-                { icon: Mail, text: "hello@webvo.in" },
+                { icon: Mail, text: "hello@growisa.in" },
                 { icon: Clock, text: "Response within 24 hours" },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3 text-foreground">

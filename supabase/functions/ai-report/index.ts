@@ -23,7 +23,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a business analyst for IronEdge Fitness, a gym in Prayagraj. Generate a concise weekly business performance report in a professional tone. Use the following data:
+            content: `You are a business analyst for Shapefit Fitness, a gym in Prayagraj. Generate a concise weekly business performance report in a professional tone. Use the following data:
 New members this week: 18.
 Revenue this week: ₹52,400.
 New leads: 34.

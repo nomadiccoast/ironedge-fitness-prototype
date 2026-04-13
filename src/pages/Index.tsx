@@ -18,7 +18,7 @@ const features = [
 ];
 
 const testimonials = [
-  { name: "Rahul Verma", quote: "IronEdge transformed my fitness journey. The AI scheduling saves so much time — best gym in Prayagraj!", rating: 5 },
+  { name: "Rahul Verma", quote: "Shapefit transformed my fitness journey. The AI scheduling saves so much time — best gym in Prayagraj!", rating: 5 },
   { name: "Priya Singh", quote: "Love the personal training sessions. The trainers are so knowledgeable and the vibe is always motivating.", rating: 5 },
   { name: "Amit Srivastava", quote: "The progress tracking feature is incredible. I can actually see my improvements month over month.", rating: 5 },
 ];
@@ -169,7 +169,7 @@ export default function Index() {
             allowFullScreen
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
-            title="IronEdge Fitness Location"
+            title="Shapefit Fitness Location"
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-center">
@@ -183,7 +183,7 @@ export default function Index() {
           </div>
           <div className="p-4 rounded-xl bg-card border border-border">
             <p className="font-semibold text-primary">📧 Email</p>
-            <p className="text-sm text-muted-foreground">hello@ironedge.in</p>
+            <p className="text-sm text-muted-foreground">hello@Shapefit.in</p>
           </div>
         </div>
       </section>

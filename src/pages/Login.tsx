@@ -14,7 +14,7 @@ export default function Login() {
     
     // 🔥 CHANGE YOUR LOGIN DETAILS HERE
     if (email === "shapefit1" && password === "bygrowsia") {
-      localStorage.setItem("ironedge_auth", "true");
+      localStorage.setItem("Shapefit_auth", "true");
       navigate("/dashboard");
     } else {
       // Fixed the error message so it doesn't reveal your password!
@@ -28,7 +28,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <Dumbbell className="h-10 w-10 text-accent mx-auto mb-3" />
           <h1 className="text-2xl font-display font-bold text-primary">Owner Dashboard</h1>
-          {/* Changed branding from IronEdge to ShapeFit */}
+          {/* Changed branding from Shapefit to ShapeFit */}
           <p className="text-sm text-muted-foreground mt-1">Sign in to manage ShapeFit</p>
         </div>
         <form onSubmit={handleLogin} className="bg-card border border-border rounded-2xl p-6 space-y-4 shadow-sm">

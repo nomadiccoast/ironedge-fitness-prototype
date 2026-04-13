@@ -8,7 +8,7 @@ type Message = { role: "user" | "assistant"; content: string };
 export default function AIChatbot() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm the IronEdge AI assistant. Ask me anything about our plans, timings, trainers, or facilities! 💪" },
+    { role: "assistant", content: "Hi! I'm the Shapefit AI assistant. Ask me anything about our plans, timings, trainers, or facilities! 💪" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

@@ -24,7 +24,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a social media manager for IronEdge Fitness, a gym in Prayagraj, India. Write engaging social media posts in a friendly Hinglish tone (mix of Hindi and English). Keep posts punchy, include relevant emojis, and end with a call-to-action. Tailor length and style for the selected platform.`,
+            content: `You are a social media manager for Shapefit Fitness, a gym in Prayagraj, India. Write engaging social media posts in a friendly Hinglish tone (mix of Hindi and English). Keep posts punchy, include relevant emojis, and end with a call-to-action. Tailor length and style for the selected platform.`,
           },
           {
             role: "user",

@@ -85,10 +85,10 @@ const [payments, setPayments] = useState<Payment[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => generateAttendanceRecords());
 
   useEffect(() => {
-    if (localStorage.getItem("ironedge_auth") !== "true") navigate("/login");
+    if (localStorage.getItem("Shapefit_auth") !== "true") navigate("/login");
   }, [navigate]);
 
-  const logout = () => { localStorage.removeItem("ironedge_auth"); navigate("/login"); };
+  const logout = () => { localStorage.removeItem("Shapefit_auth"); navigate("/login"); };
 
   const generateReport = async () => {
     setAiLoading(true); setAiReport("");
@@ -382,7 +382,7 @@ const [payments, setPayments] = useState<Payment[]>([]);
     <div className="min-h-screen bg-background flex">
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground transform transition-transform lg:relative lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="p-4 border-b border-sidebar-border">
-          <span className="font-display font-bold text-lg">IronEdge</span>
+          <span className="font-display font-bold text-lg">Shapefit</span>
         </div>
         <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
           {sidebarItems.map(item => (
@@ -407,7 +407,7 @@ const [payments, setPayments] = useState<Payment[]>([]);
           <div className="flex items-center gap-3">
             <button className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></button>
             <div>
-              <p className="font-semibold text-primary text-sm">Good morning, Vikram 👋</p>
+              <p className="font-semibold text-primary text-sm">Good morning, Prashant 👋</p>
               <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
           </div>
