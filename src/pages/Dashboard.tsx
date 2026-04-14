@@ -92,14 +92,42 @@ export default function Dashboard() {
   const logout = () => { localStorage.removeItem("Shapefit_auth"); navigate("/login"); };
 
   const generateReport = async () => {
-    setAiLoading(true); setAiReport("");
-    try {
-      const { data, error } = await supabase.functions.invoke("ai-report", {});
-      if (error) throw error;
-      setAiReport(data.content);
-    } catch { toast.error("Failed to generate report."); }
-    finally { setAiLoading(false); }
-  };
+  setAiLoading(true);
+  setAiReport("");
+
+  // 1. Calculate REAL numbers from your state
+  // We use || [] just in case the variables are null/undefined
+  const activeCount = (members || []).filter(m => m.status !== "Inactive").length;
+  const alumniCount = (members || []).filter(m => m.status === "Inactive").length;
+  
+  // Sum up all payments in your payment history
+  const totalRev = (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  
+  // Count the leads from your leads table
+  const leadsCount = (realLeads || []).length;
+
+  console.log("Sending to AI:", { activeCount, alumniCount, totalRev, leadsCount });
+
+  try {
+    const { data, error } = await supabase.functions.invoke("ai-report", {
+      body: {
+        activeMembers: activeCount,
+        alumniCount: alumniCount,
+        totalRevenue: totalRev,
+        totalLeads: leadsCount
+      }
+    });
+
+    if (error) throw error;
+    setAiReport(data.content);
+    toast.success("Report generated with live data!");
+  } catch (err) {
+    console.error("Report Error:", err);
+    toast.error("Failed to generate report.");
+  } finally {
+    setAiLoading(false);
+  }
+};
 
   const filteredLeads = realLeads.filter(l => {
     if (leadFilter !== "All" && l.status !== leadFilter) return false;
