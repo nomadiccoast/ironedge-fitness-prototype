@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Edit2, Trash2, X, Sparkles, Copy, Loader2 } from "lucide-react";
+import { Search, Plus, Download, Edit2, Trash2, X, Sparkles, Copy, Loader2, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ interface Props {
 const emptyMember: Omit<Member, "id" | "status" | "attendance" | "expiryDate"> = {
   name: "", phone: "", email: "", age: 25, weight: 70, height: 170,
   plan: "Monthly", amountPaid: 1500, paymentMethod: "UPI", joinDate: new Date().toISOString().split("T")[0],
+  total_fee: 1500, balance_due: 0, next_due_date: "",
 };
 
 function calcExpiry(joinDate: string, plan: string): string {
@@ -26,7 +27,8 @@ function calcExpiry(joinDate: string, plan: string): string {
   return d.toISOString().split("T")[0];
 }
 
-function calcStatus(expiryDate: string): Member["status"] {
+function calcStatus(expiryDate: string, overrideStatus?: string): Member["status"] {
+  if (overrideStatus === "Inactive") return "Inactive";
   const diff = (new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   if (diff < 0) return "Expired";
   if (diff <= 7) return "Expiring Soon";
@@ -37,6 +39,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [showInactive, setShowInactive] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyMember);
@@ -52,36 +55,24 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   useEffect(() => {
     const fetchEverything = async () => {
       try {
-        console.log("🚨 TRACKER: Fetching data from Supabase on load...");
-        
-        const { data: membersData, error: membersError } = await supabase
-          .from("members")
-          .select("*")
-          .order("created_at", { ascending: false });
-
+        const { data: membersData, error: membersError } = await supabase.from("members").select("*").order("created_at", { ascending: false });
         if (membersError) throw membersError;
-        if (membersData) {
-          setMembers(membersData as any);
-        }
+        if (membersData) setMembers(membersData as any);
 
-        const { data: paymentsData, error: paymentsError } = await supabase
-          .from("payments")
-          .select("*")
-          .order("date", { ascending: false });
-
+        const { data: paymentsData, error: paymentsError } = await supabase.from("payments").select("*").order("date", { ascending: false });
         if (paymentsError) throw paymentsError;
-        if (paymentsData) {
-          setPayments(paymentsData as any);
-        }
+        if (paymentsData) setPayments(paymentsData as any);
       } catch (error) {
-        console.error("🚨 TRACKER: Error fetching data:", error);
+        console.error("Error fetching data:", error);
       }
     };
-
     fetchEverything();
   }, [setMembers, setPayments]);
 
   const filtered = members.filter(m => {
+    if (!showInactive && m.status === "Inactive") return false;
+    if (showInactive && m.status !== "Inactive") return false;
+
     if (planFilter !== "All" && m.plan !== planFilter) return false;
     if (statusFilter !== "All" && m.status !== statusFilter) return false;
     if (search && !m.name.toLowerCase().includes(search.toLowerCase()) && !m.phone.includes(search)) return false;
@@ -90,7 +81,13 @@ export default function MemberManagement({ members, setMembers, payments, setPay
 
   const openAdd = () => { setForm(emptyMember); setEditId(null); setModalOpen(true); };
   const openEdit = (m: Member) => {
-    setForm({ name: m.name, phone: m.phone, email: m.email, age: m.age, weight: m.weight, height: m.height, plan: m.plan, amountPaid: m.amountPaid, paymentMethod: m.paymentMethod, joinDate: m.joinDate });
+    setForm({ 
+      name: m.name, phone: m.phone, email: m.email || "", age: m.age || 25, weight: m.weight, height: m.height, 
+      plan: m.plan, amountPaid: m.amountPaid, paymentMethod: m.paymentMethod, joinDate: m.joinDate,
+      total_fee: m.total_fee || m.amountPaid, 
+      balance_due: m.balance_due || 0, 
+      next_due_date: m.next_due_date || "",
+    });
     setEditId(m.id);
     setModalOpen(true);
   };
@@ -98,41 +95,34 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const save = async () => {
     if (!form.name || !form.phone) { toast.error("Name and phone are required"); return; }
     setSaving(true);
+    
     const expiryDate = calcExpiry(form.joinDate, form.plan);
-    const status = calcStatus(expiryDate);
+    const calculatedBalance = (form.total_fee || 0) - form.amountPaid;
+    
+    const existingMember = members.find(m => m.id === editId);
+    const finalStatus = calcStatus(expiryDate, existingMember?.status === "Inactive" ? "Inactive" : undefined);
+
+    const payload = {
+      name: form.name, phone: form.phone, email: form.email, age: form.age,
+      weight: form.weight, height: form.height, plan: form.plan,
+      amountPaid: form.amountPaid, paymentMethod: form.paymentMethod,
+      joinDate: form.joinDate, expiryDate, status: finalStatus,
+      total_fee: form.total_fee, balance_due: calculatedBalance, next_due_date: form.next_due_date || null
+    };
 
     try {
       if (editId) {
-        const { error } = await supabase.from("members" as any).update({
-          name: form.name, phone: form.phone, email: form.email, age: form.age,
-          weight: form.weight, height: form.height, plan: form.plan,
-          amountPaid: form.amountPaid, paymentMethod: form.paymentMethod,
-          joinDate: form.joinDate, expiryDate, status,
-        }).eq("id", editId);
+        const { error } = await supabase.from("members" as any).update(payload).eq("id", editId);
         if (error) throw error;
-        setMembers(prev => prev.map(m => m.id === editId ? { ...m, ...form, expiryDate, status } : m));
+        setMembers(prev => prev.map(m => m.id === editId ? { ...m, ...payload } : m));
         toast.success("Member updated!");
       } else {
-        const payload = {
-          name: form.name, phone: form.phone, email: form.email, age: form.age,
-          weight: form.weight, height: form.height, plan: form.plan,
-          amountPaid: form.amountPaid, paymentMethod: form.paymentMethod,
-          joinDate: form.joinDate, expiryDate, status, attendance: 0,
-        };
-        
-        const { data: rawData, error } = await supabase.from("members" as any).insert(payload).select().single();
-        
+        const insertPayload = { ...payload, attendance: 0 };
+        const { data: rawData, error } = await supabase.from("members" as any).insert(insertPayload).select().single();
         if (error) throw error;
-
+        
         const data = rawData as any;
-        const newMember: Member = {
-          id: data.id, name: data.name, phone: data.phone, email: data.email || "",
-          age: data.age, weight: data.weight, height: data.height, plan: data.plan,
-          amountPaid: data.amountPaid, paymentMethod: data.paymentMethod,
-          joinDate: data.joinDate, expiryDate: data.expiryDate,
-          attendance: data.attendance || 0, status: data.status,
-        };
-        setMembers(prev => [...prev, newMember]);
+        setMembers(prev => [...prev, { ...insertPayload, id: data.id, attendance: 0 }]);
 
         await supabase.from("payments" as any).insert({
           memberId: data.id, memberName: form.name, date: form.joinDate,
@@ -156,22 +146,32 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     }
   };
 
+  const markInactive = async (id: string) => {
+    try {
+      const { error } = await supabase.from("members" as any).update({ status: "Inactive" }).eq("id", id);
+      if (error) throw error;
+      setMembers(prev => prev.map(m => m.id === id ? { ...m, status: "Inactive" } : m));
+      toast.success("Member moved to Alumni");
+    } catch (err: any) {
+      toast.error("Failed to update status");
+    }
+  };
+
   const deleteMember = async (id: string) => {
     try {
       const { error } = await supabase.from("members" as any).delete().eq("id", id);
       if (error) throw error;
       setMembers(prev => prev.filter(m => m.id !== id));
       setDeleteConfirm(null);
-      toast.success("Member deleted");
-      posthog.capture("member_deleted");
+      toast.success("Member deleted permanently");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete member");
     }
   };
 
   const exportCSV = () => {
-    const headers = ["Name", "Phone", "Plan", "Amount Paid", "Join Date", "Expiry Date", "Attendance %", "Status"];
-    const rows = members.map(m => [m.name, m.phone, m.plan, m.amountPaid, m.joinDate, m.expiryDate, m.attendance, m.status]);
+    const headers = ["Name", "Phone", "Email", "Plan", "Total Fee", "Amount Paid", "Balance Due", "Join Date", "Expiry Date", "Attendance %", "Status"];
+    const rows = members.map(m => [m.name, m.phone, m.email, m.plan, m.total_fee || 0, m.amountPaid, m.balance_due || 0, m.joinDate, m.expiryDate, m.attendance, m.status]);
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -187,7 +187,6 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     try {
       const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
       
-      // 🔥 NEW SMART AI PROMPT
       const prompt = `You are an elite clinical sports nutritionist. 
       Create a highly personalized 1-day diet plan for ${member.name}.
       
@@ -227,17 +226,11 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       });
 
       const data = await response.json();
-      
       if (!response.ok) throw new Error(data.error?.message || "Failed to fetch from Groq");
 
       const aiDietText = data.choices[0].message.content;
       setDietPlan(aiDietText);
-      
-      posthog.capture("used_ai_diet_generator", {
-        goal: dietGoal,
-        member_name: member.name
-      });
-      
+      posthog.capture("used_ai_diet_generator", { goal: dietGoal, member_name: member.name });
     } catch (err) {
       console.error("Groq AI Error:", err);
       toast.error("Failed to generate real diet plan");
@@ -253,6 +246,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
 
   const addPayment = async () => {
     if (!selectedMember) return;
+    setSaving(true);
     try {
       const paymentData = {
         memberId: selectedMember.id, memberName: selectedMember.name,
@@ -260,23 +254,40 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         method: payForm.method, plan: payForm.plan, recordedBy: "Prashant",
         note: payForm.note || null,
       };
+      
       const { data: rawPay, error } = await supabase.from("payments" as any).insert(paymentData).select().single();
       if (error) throw error;
+      
+      const newAmountPaid = selectedMember.amountPaid + payForm.amount;
+      const totalFee = selectedMember.total_fee || selectedMember.amountPaid;
+      const newBalanceDue = totalFee - newAmountPaid;
+
+      const { error: memberError } = await supabase.from("members" as any).update({
+        amountPaid: newAmountPaid,
+        balance_due: newBalanceDue < 0 ? 0 : newBalanceDue
+      }).eq("id", selectedMember.id);
+      
+      if (memberError) throw memberError;
+
       const pd = rawPay as any;
-      const p: Payment = {
-        id: pd.id, memberId: pd.memberId, memberName: pd.memberName,
-        date: pd.date, amount: pd.amount, method: pd.method,
-        plan: pd.plan, recordedBy: pd.recordedBy, note: pd.note || undefined,
-      };
-      setPayments(prev => [...prev, p]);
+      setPayments(prev => [...prev, { ...pd, id: pd.id }]);
+      
+      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { 
+        ...m, amountPaid: newAmountPaid, balance_due: newBalanceDue < 0 ? 0 : newBalanceDue 
+      } : m));
+      
+      setSelectedMember(prev => prev ? { 
+        ...prev, amountPaid: newAmountPaid, balance_due: newBalanceDue < 0 ? 0 : newBalanceDue 
+      } : null);
+
       setPaymentModal(false);
-      
       posthog.capture("payment_recorded", { amount: payForm.amount, method: payForm.method, plan: payForm.plan });
-      
       setPayForm({ amount: 1500, method: "UPI", plan: "Monthly", note: "" });
-      toast.success("Payment recorded!");
+      toast.success("Payment recorded & Balance Updated!");
     } catch (err: any) {
       toast.error(err.message || "Failed to record payment");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -285,6 +296,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const statusBadge = (s: string) => {
     if (s === "Active") return "bg-success/20 text-success";
     if (s === "Expired") return "bg-destructive/20 text-destructive";
+    if (s === "Inactive") return "bg-muted text-muted-foreground";
     return "bg-yellow-100 text-yellow-700";
   };
 
@@ -296,20 +308,27 @@ export default function MemberManagement({ members, setMembers, payments, setPay
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or phone..."
             className="w-full pl-9 pr-4 py-2 border border-border rounded-lg text-sm bg-card" />
         </div>
-        <select value={planFilter} onChange={e => setPlanFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-card">
-          {["All", "Monthly", "Quarterly", "Annual"].map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-card">
-          {["All", "Active", "Expired", "Expiring Soon"].map(s => <option key={s}>{s}</option>)}
-        </select>
+        {!showInactive && (
+          <>
+            <select value={planFilter} onChange={e => setPlanFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-card">
+              {["All", "Monthly", "Quarterly", "Annual"].map(s => <option key={s}>{s}</option>)}
+            </select>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-card">
+              {["All", "Active", "Expired", "Expiring Soon"].map(s => <option key={s}>{s}</option>)}
+            </select>
+          </>
+        )}
+        <Button onClick={() => setShowInactive(!showInactive)} variant="outline" className={`gap-2 ${showInactive ? "bg-muted" : ""}`}>
+          <Archive className="h-4 w-4" /> {showInactive ? "Back to Active" : "View Alumni"}
+        </Button>
         <Button onClick={openAdd} className="bg-accent hover:bg-accent/90 gap-2"><Plus className="h-4 w-4" /> Add Member</Button>
-        <Button onClick={exportCSV} variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export CSV</Button>
+        <Button onClick={exportCSV} variant="outline" className="gap-2 hidden sm:flex"><Download className="h-4 w-4" /> Export</Button>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-secondary">
-            {["Name", "Phone", "Plan", "₹ Paid", "Join", "Expiry", "Attendance", "Status", "Actions"].map(h =>
+            {["Name", "Phone", "Plan", "Total Fee", "Balance Due", "Expiry", "Attendance", "Status", "Actions"].map(h =>
               <th key={h} className="px-4 py-3 text-left text-muted-foreground font-medium whitespace-nowrap">{h}</th>
             )}
           </tr></thead>
@@ -319,15 +338,20 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                 <td className="px-4 py-3 font-medium text-primary">{m.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{m.phone}</td>
                 <td className="px-4 py-3">{m.plan}</td>
-                <td className="px-4 py-3">₹{m.amountPaid.toLocaleString("en-IN")}</td>
-                <td className="px-4 py-3 text-muted-foreground">{m.joinDate}</td>
+                <td className="px-4 py-3">₹{(m.total_fee || m.amountPaid).toLocaleString("en-IN")}</td>
+                <td className="px-4 py-3 font-medium text-destructive">
+                  {m.balance_due && m.balance_due > 0 ? `₹${m.balance_due.toLocaleString("en-IN")}` : "—"}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{m.expiryDate}</td>
                 <td className="px-4 py-3">{m.attendance}%</td>
                 <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadge(m.status)}`}>{m.status}</span></td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => openEdit(m)} className="p-1.5 rounded hover:bg-secondary"><Edit2 className="h-3.5 w-3.5 text-muted-foreground" /></button>
-                    <button onClick={() => setDeleteConfirm(m.id)} className="p-1.5 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
+                    <button onClick={() => openEdit(m)} className="p-1.5 rounded hover:bg-secondary" title="Edit"><Edit2 className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                    {m.status !== "Inactive" && (
+                      <button onClick={() => markInactive(m.id)} className="p-1.5 rounded hover:bg-yellow-100" title="Move to Alumni"><Archive className="h-3.5 w-3.5 text-yellow-700" /></button>
+                    )}
+                    <button onClick={() => setDeleteConfirm(m.id)} className="p-1.5 rounded hover:bg-destructive/10" title="Delete Permanently"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                   </div>
                 </td>
               </tr>
@@ -337,10 +361,10 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       </div>
 
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setDeleteConfirm(null)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center" onClick={() => setDeleteConfirm(null)}>
           <div className="bg-card rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-primary mb-2">Delete Member?</h3>
-            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone.</p>
+            <h3 className="font-semibold text-primary mb-2">Delete Permanently?</h3>
+            <p className="text-sm text-muted-foreground mb-4">This will erase all records of this member. We recommend using the "Archive" button instead.</p>
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMember(deleteConfirm)}>Delete</Button>
@@ -349,6 +373,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         </div>
       )}
 
+      {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={() => setModalOpen(false)}>
           <div className="bg-card rounded-t-xl sm:rounded-xl p-6 max-w-lg w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4" onClick={e => e.stopPropagation()}>
@@ -371,6 +396,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                     className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" />
                 </div>
               ))}
+              
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Plan Type</label>
                 <select value={form.plan} onChange={e => setForm(prev => ({ ...prev, plan: e.target.value as any }))}
@@ -379,21 +405,40 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Amount Paid (₹)</label>
-                <input type="number" value={form.amountPaid} onChange={e => setForm(prev => ({ ...prev, amountPaid: Number(e.target.value) }))}
-                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Payment Method</label>
-                <select value={form.paymentMethod} onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value as any }))}
-                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                  {["Cash", "UPI", "Card"].map(m => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
                 <label className="text-xs font-medium text-muted-foreground">Join Date</label>
                 <input type="date" value={form.joinDate} onChange={e => setForm(prev => ({ ...prev, joinDate: e.target.value }))}
                   className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              </div>
+
+              {/* Partial Payment Inputs */}
+              <div className="col-span-2 border-t border-border my-2 pt-2">
+                <p className="text-xs font-semibold text-primary mb-2">Payment Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Total Plan Fee (₹)</label>
+                    <input type="number" value={form.total_fee} onChange={e => setForm(prev => ({ ...prev, total_fee: Number(e.target.value) }))}
+                      className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Amount Paid Now (₹)</label>
+                    <input type="number" value={form.amountPaid} onChange={e => setForm(prev => ({ ...prev, amountPaid: Number(e.target.value) }))}
+                      className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Payment Method</label>
+                    <select value={form.paymentMethod} onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value as any }))}
+                      className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                      {["Cash", "UPI", "Card"].map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  {(form.total_fee || 0) > form.amountPaid && (
+                    <div>
+                      <label className="text-xs font-medium text-destructive">Next Due Date</label>
+                      <input type="date" value={form.next_due_date} onChange={e => setForm(prev => ({ ...prev, next_due_date: e.target.value }))}
+                        className="w-full mt-1 border border-destructive/50 rounded-lg px-3 py-2 text-sm bg-background" />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <Button onClick={save} disabled={saving} className="w-full mt-4 bg-accent hover:bg-accent/90">
@@ -404,6 +449,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
         </div>
       )}
 
+      {/* Selected Member Profile Modal (includes Diet Gen & Payment History) */}
       {selectedMember && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={() => setSelectedMember(null)}>
           <div className="bg-card rounded-t-xl sm:rounded-xl p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4" onClick={e => e.stopPropagation()}>
@@ -415,9 +461,9 @@ export default function MemberManagement({ members, setMembers, payments, setPay
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
                 { label: "Phone", value: selectedMember.phone },
-                { label: "Plan", value: selectedMember.plan },
                 { label: "Status", value: selectedMember.status },
-                { label: "Attendance", value: `${selectedMember.attendance}%` },
+                { label: "Total Fee", value: `₹${(selectedMember.total_fee || selectedMember.amountPaid).toLocaleString()}` },
+                { label: "Balance Due", value: selectedMember.balance_due && selectedMember.balance_due > 0 ? `₹${selectedMember.balance_due.toLocaleString()}` : "Clear" },
                 { label: "Age", value: `${selectedMember.age} yrs` },
                 { label: "Weight", value: `${selectedMember.weight} kg` },
                 { label: "Height", value: `${selectedMember.height} cm` },
@@ -430,6 +476,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               ))}
             </div>
 
+            {/* AI Diet Plan Block */}
             <div className="border border-border rounded-xl p-4 mb-4">
               <h4 className="font-semibold text-primary text-sm mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-accent" /> AI Diet Plan Generator
@@ -454,7 +501,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                   <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap text-xs">{dietPlan}</div>
                   <div className="flex gap-2 mt-3">
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(dietPlan); toast.success("Copied!"); }} className="gap-1">
-                      <Copy className="h-3 w-3" /> Copy Diet Plan
+                      <Copy className="h-3 w-3" /> Copy
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => sendDietWhatsApp(selectedMember.phone)} className="gap-1 text-success border-success/30">
                       📱 Send on WhatsApp
@@ -464,6 +511,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               )}
             </div>
 
+            {/* Payment History Block */}
             <div className="border border-border rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-semibold text-primary text-sm">Payment History</h4>
@@ -496,6 +544,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               )}
             </div>
 
+            {/* Add Payment Modal inside Selected Member Modal */}
             {paymentModal && (
               <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center" onClick={() => setPaymentModal(false)}>
                 <div className="bg-card rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
@@ -513,6 +562,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                         {["Cash", "UPI", "Card"].map(m => <option key={m}>{m}</option>)}
                       </select>
                     </div>
+                    {/* 🔥 Re-Added Plan Selector Here */}
                     <div>
                       <label className="text-xs font-medium text-muted-foreground">Plan</label>
                       <select value={payForm.plan} onChange={e => setPayForm(p => ({ ...p, plan: e.target.value as any }))}
@@ -526,7 +576,10 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                         className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Optional note..." />
                     </div>
                   </div>
-                  <Button onClick={addPayment} className="w-full mt-4 bg-accent hover:bg-accent/90">Record Payment</Button>
+                  <Button onClick={addPayment} disabled={saving} className="w-full mt-4 bg-accent hover:bg-accent/90">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Record & Update Balance
+                  </Button>
                 </div>
               </div>
             )}

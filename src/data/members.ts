@@ -12,7 +12,12 @@ export interface Member {
   joinDate: string;
   expiryDate: string;
   attendance: number;
-  status: "Active" | "Expiring Soon" | "Expired";
+  // 👇 Added "Inactive" here for the Soft Deletion feature
+  status: "Active" | "Expiring Soon" | "Expired" | "Inactive"; 
+  // 👇 Added these 3 optional lines for Partial Payments
+  total_fee?: number;
+  balance_due?: number;
+  next_due_date?: string;
 }
 
 export interface Payment {
