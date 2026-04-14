@@ -9,39 +9,47 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("API key not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) throw new Error("Groq API key not configured");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const { activeMembers, alumniCount, totalRevenue, totalLeads } = await req.json();
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
-            content: `You are a business analyst for Shapefit Fitness, a gym in Prayagraj. Generate a concise weekly business performance report in a professional tone. Use the following data:
-New members this week: 18.
-Revenue this week: ₹52,400.
-New leads: 34.
-Top performing plan: Pro.
-Churn this week: 2 members.
-Format the report with sections: Executive Summary, Key Wins, Areas of Concern, Recommendations for Next Week. Keep it under 300 words.`,
+            content: `You are a world-class business analyst for Shapefit Gym in Naini, Prayagraj. Generate a concise, professional business performance report. 
+            
+            USE THIS REAL DATA:
+            - Total Active Members: ${activeMembers || 0}
+            - Alumni (Members who left): ${alumniCount || 0}
+            - Total Revenue Logged: ₹${(totalRevenue || 0).toLocaleString("en-IN")}
+            - Total Web Leads Captured: ${totalLeads || 0}
+            
+            Format the report cleanly with these exact sections: 
+            1. Executive Summary 
+            2. Key Wins 
+            3. Areas of Concern 
+            4. Recommendations for Growth. 
+            
+            Keep it under 300 words, do not use markdown asterisks (**), and use ALL CAPS for the section headers. Speak directly to Prashant, the owner.`,
           },
-          { role: "user", content: "Generate the weekly report." },
+          { role: "user", content: "Generate the business report." },
         ],
-        max_tokens: 1000,
+        temperature: 0.5,
       }),
     });
 
     if (!response.ok) {
-      const status = response.status;
-      if (status === 429) return new Response(JSON.stringify({ error: "Rate limited" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (status === 402) return new Response(JSON.stringify({ error: "Credits exhausted" }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      throw new Error(`Gateway error: ${status}`);
+      const errorData = await response.text();
+      throw new Error(`Groq API Error: ${response.status} - ${errorData}`);
     }
 
     const data = await response.json();
