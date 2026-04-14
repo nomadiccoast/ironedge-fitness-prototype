@@ -187,27 +187,24 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     try {
       const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
       
-      const prompt = `You are an elite clinical sports nutritionist. 
-      Create a highly personalized 1-day diet plan for ${member.name}.
+      const prompt = `You are a friendly, elite clinical sports nutritionist acting as a personal coach. 
+      Create a highly personalized, warm, and human-sounding 1-day diet plan for ${member.name}.
       
       CLIENT STATS:
-      - Age: ${member.age}
-      - Weight: ${member.weight} kg
-      - Height: ${member.height} cm
-      - Goal: ${dietGoal}
+      Age: ${member.age} | Weight: ${member.weight} kg | Height: ${member.height} cm | Goal: ${dietGoal}
       
-      INSTRUCTIONS & MATH (You MUST do this first):
-      1. Calculate their exact BMI and state it.
-      2. Calculate their estimated BMR (Basal Metabolic Rate).
-      3. Determine their Target Daily Calories based strictly on their Goal (${dietGoal}).
-      4. Calculate their exact Macro split (Protein, Carbs, Fats in grams) tailored to this goal.
+      INSTRUCTIONS & MATH:
+      First, calculate and briefly state their BMI, estimated BMR, Target Daily Calories for their goal, and Macro split. Keep this math section friendly and easy to read.
       
       DIET PLAN FORMAT:
-      Present the Client Profile & Math clearly at the top. 
-      Then, provide TWO distinct 1-day meal plans (Option A: Vegetarian and Option B: Non-Vegetarian) that hit these exact macros.
-      Provide precise portion sizes in grams (e.g., "150g chicken breast", "200g paneer").
-      Format clearly with Breakfast, Lunch, and Dinner.
-      Keep the response structured, clean, and under 300 words. Do not add conversational fluff.`;
+      Provide TWO 1-day meal plans (Option A: Vegetarian and Option B: Non-Vegetarian) that hit these exact macros.
+      Give precise portion sizes (e.g., 150g chicken breast, 200g paneer) for Breakfast, Lunch, and Dinner.
+      
+      STYLE GUIDELINES (CRITICAL):
+      1. Tone: Warm, human, and encouraging. Speak directly to ${member.name} like a supportive coach sending a WhatsApp message.
+      2. Emojis: Use a few minimal, tasteful emojis (like 🥗, 💪, 💧) to make it feel personalized, but do not clutter the text.
+      3. Formatting: Absolutely NO markdown formatting. Do NOT use asterisks (**) or hashes (#). Use standard spacing, line breaks, and ALL CAPS for headings to keep it looking clean and minimal.
+      4. Length: Keep it concise, structured, and under 300 words.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
