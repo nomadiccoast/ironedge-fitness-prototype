@@ -93,20 +93,20 @@ export default function Dashboard() {
 
   const generateReport = async () => {
   setAiLoading(true);
-  setAiReport("");
-
-  // 1. Calculate REAL numbers from your state
-  // We use || [] just in case the variables are null/undefined
-  const activeCount = (members || []).filter(m => m.status !== "Inactive").length;
-  const alumniCount = (members || []).filter(m => m.status === "Inactive").length;
   
-  // Sum up all payments in your payment history
-  const totalRev = (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  
-  // Count the leads from your leads table
-  const leadsCount = (realLeads || []).length;
+  // LOGIC: If a variable is missing, we try to find its alternative name
+  const currentMembers = members || [];
+  const currentPayments = payments || allPayments || []; // Check both common names
+  const currentLeads = realLeads || leads || []; // Check both common names
 
-  console.log("Sending to AI:", { activeCount, alumniCount, totalRev, leadsCount });
+  const activeCount = currentMembers.filter(m => m.status !== "Inactive").length;
+  const alumniCount = currentMembers.filter(m => m.status === "Inactive").length;
+  
+  // Force conversion to number to prevent "0" strings
+  const totalRev = currentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const leadsCount = currentLeads.length;
+
+  console.log("FINAL CHECK BEFORE SENDING:", { activeCount, alumniCount, totalRev, leadsCount });
 
   try {
     const { data, error } = await supabase.functions.invoke("ai-report", {
@@ -119,11 +119,15 @@ export default function Dashboard() {
     });
 
     if (error) throw error;
-    setAiReport(data.content);
-    toast.success("Report generated with live data!");
+    
+    // This ensures the UI actually updates with the new text
+    setAiReport(""); 
+    setTimeout(() => setAiReport(data.content), 10);
+    
+    toast.success("Report synchronized with gym data!");
   } catch (err) {
-    console.error("Report Error:", err);
-    toast.error("Failed to generate report.");
+    console.error("AI Report Error:", err);
+    toast.error("AI was unable to process the data.");
   } finally {
     setAiLoading(false);
   }
