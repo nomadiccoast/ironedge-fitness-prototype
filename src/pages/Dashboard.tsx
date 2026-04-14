@@ -94,21 +94,21 @@ export default function Dashboard() {
   const generateReport = async () => {
   setAiLoading(true);
   
-  // LOGIC: If a variable is missing, we try to find its alternative name
-  const currentMembers = members || [];
-  const currentPayments = payments || allPayments || []; // Check both common names
-  const currentLeads = realLeads || leads || []; // Check both common names
-
-  const activeCount = currentMembers.filter(m => m.status !== "Inactive").length;
-  const alumniCount = currentMembers.filter(m => m.status === "Inactive").length;
-  
-  // Force conversion to number to prevent "0" strings
-  const totalRev = currentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const leadsCount = currentLeads.length;
-
-  console.log("FINAL CHECK BEFORE SENDING:", { activeCount, alumniCount, totalRev, leadsCount });
-
   try {
+    // 1. FRESH FETCH: Get the latest totals directly from the source
+    const { data: payData } = await supabase.from('payments').select('amount');
+    const { count: leadsCountLive } = await supabase.from('leads').select('*', { count: 'exact', head: true });
+    const { data: memberData } = await supabase.from('members').select('status');
+
+    // 2. CALCULATE
+    const totalRev = (payData || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const activeCount = (memberData || []).filter(m => m.status !== "Inactive").length;
+    const alumniCount = (memberData || []).filter(m => m.status === "Inactive").length;
+    const leadsCount = leadsCountLive || 0;
+
+    console.log("FINAL DATABASE VERIFICATION:", { activeCount, alumniCount, totalRev, leadsCount });
+
+    // 3. SEND TO AI
     const { data, error } = await supabase.functions.invoke("ai-report", {
       body: {
         activeMembers: activeCount,
@@ -120,14 +120,12 @@ export default function Dashboard() {
 
     if (error) throw error;
     
-    // This ensures the UI actually updates with the new text
-    setAiReport(""); 
-    setTimeout(() => setAiReport(data.content), 10);
-    
-    toast.success("Report synchronized with gym data!");
+    setAiReport(data.content);
+    toast.success("Live business report generated!");
+
   } catch (err) {
-    console.error("AI Report Error:", err);
-    toast.error("AI was unable to process the data.");
+    console.error("Critical Report Error:", err);
+    toast.error("Could not sync with live database.");
   } finally {
     setAiLoading(false);
   }
