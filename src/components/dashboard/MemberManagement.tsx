@@ -394,11 +394,25 @@ export default function MemberManagement({ members, setMembers, payments, setPay
                 </div>
               ))}
               
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Plan Type</label>
-                <select value={form.plan} onChange={e => setForm(prev => ({ ...prev, plan: e.target.value as any }))}
-                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                  {["Monthly", "Quarterly", "Annual"].map(p => <option key={p}>{p}</option>)}
+             <div>
+                <label className="text-xs font-medium text-muted-foreground">Plan Duration</label>
+                <select 
+                  value={form.plan} 
+                  onChange={e => setForm(prev => ({ ...prev, plan: e.target.value as any }))}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                >
+                  <option value="1">1 Month</option>
+                  <option value="2">2 Months</option>
+                  <option value="3">3 Months</option>
+                  <option value="4">4 Months</option>
+                  <option value="5">5 Months</option>
+                  <option value="6">6 Months</option>
+                  <option value="7">7 Months</option>
+                  <option value="8">8 Months</option>
+                  <option value="9">9 Months</option>
+                  <option value="10">10 Months</option>
+                  <option value="11">11 Months</option>
+                  <option value="12">12 Months</option>
                 </select>
               </div>
               <div>

@@ -160,15 +160,29 @@ export default function Dashboard() {
     return months;
   }, [payments]);
 
-  // Member Pie
+// Member Pie
   const realMemberPie = useMemo(() => {
     return [
-      { name: "Monthly", value: members.filter(m => m.plan === "Monthly").length, color: "hsl(220,9%,46%)" },
-      { name: "Quarterly", value: members.filter(m => m.plan === "Quarterly").length, color: "hsl(351,79%,59%)" },
-      { name: "Annual", value: members.filter(m => m.plan === "Annual").length, color: "hsl(240,33%,14%)" },
+      { 
+        name: "1 Month", 
+        // Catches the new "1" and the old "Monthly"
+        value: members.filter(m => m.plan === "1" || m.plan === "Monthly").length, 
+        color: "hsl(220,9%,46%)" 
+      },
+      { 
+        name: "2-6 Months", 
+        // Catches new mid-term plans and old "Quarterly"
+        value: members.filter(m => ["2", "3", "4", "5", "6"].includes(String(m.plan)) || m.plan === "Quarterly").length, 
+        color: "hsl(351,79%,59%)" 
+      },
+      { 
+        name: "7-12 Months", 
+        // Catches new long-term plans and old "Annual"
+        value: members.filter(m => ["7", "8", "9", "10", "11", "12"].includes(String(m.plan)) || m.plan === "Annual").length, 
+        color: "hsl(240,33%,14%)" 
+      },
     ];
   }, [members]);
-
   // Member Growth
   const realMemberGrowth = useMemo(() => {
     const months: { month: string; members: number }[] = [];
