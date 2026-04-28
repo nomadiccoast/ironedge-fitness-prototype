@@ -1,4 +1,4 @@
-project_id = "bprewoalavbhfmolcpvk"
+project_id = "dertdlsezbkflchhrzze"
 
 [functions.ai-chat]
 verify_jwt = false
@@ -10,4 +10,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.ai-diet]
+verify_jwt = false
+
+[functions.lead-capture]
 verify_jwt = false

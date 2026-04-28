@@ -2,13 +2,37 @@ import { useState, useRef, useEffect } from "react";
 import { Bot, X, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 type Message = { role: "user" | "assistant"; content: string };
 
+function getLocalFallbackReply(question: string, gymName: string, gymPhone: string) {
+  const q = question.toLowerCase();
+  if (q.includes("timing") || q.includes("time") || q.includes("open")) {
+    return `${gymName} is open from 5:00 AM to 11:00 PM. Aap kab aana chahoge?`;
+  }
+  if (q.includes("price") || q.includes("plan") || q.includes("fee") || q.includes("membership")) {
+    return `Plans start from Rs 999/month. Agar chaho to best plan suggest kar deta hoon based on your goal.`;
+  }
+  if (q.includes("trial") || q.includes("demo")) {
+    return gymPhone
+      ? `Yes, free trial available hai. WhatsApp par ping karo: ${gymPhone} and we will help you book it.`
+      : `Yes, free trial available hai. Please contact ${gymName} to book it.`;
+  }
+  if (q.includes("class") || q.includes("zumba") || q.includes("yoga") || q.includes("hiit")) {
+    return `Hum Yoga, HIIT aur Zumba sessions offer karte hain. Batao kaunsa format pasand hai, us hisaab se suggest karta hoon.`;
+  }
+  return gymPhone
+    ? `Sorry, live AI service abhi reachable nahi hai. For quick help, contact ${gymName} at ${gymPhone}.`
+    : `Sorry, live AI service abhi reachable nahi hai. Please contact ${gymName} for quick help.`;
+}
+
 export default function AIChatbot() {
   const [open, setOpen] = useState(false);
+  const gymName = localStorage.getItem("gym_name") || "My Gym";
+  const gymPhone = localStorage.getItem("gym_phone") || "";
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm the Shapefit AI assistant. Ask me anything about our plans, timings, trainers, or facilities! 💪" },
+    { role: "assistant", content: `Hi! I'm the ${gymName} AI assistant. Ask me anything about our plans, timings, trainers, or facilities! 💪` },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,14 +52,26 @@ export default function AIChatbot() {
 
     try {
       const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: { messages: newMessages },
+        body: { messages: newMessages, gymName: gymName, gymPhone: gymPhone },
       });
-      if (error) throw error;
+      if (error) {
+        console.error("AI Chat Error:", error);
+        throw error;
+      }
+      if (!data?.content) {
+        throw new Error("Empty response from ai-chat function");
+      }
       setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
-    } catch {
+    } catch (err) {
+      console.error("Chatbot Error:", err);
+      const errorText = err instanceof Error ? err.message : "Unknown chatbot error";
+      if (errorText.toLowerCase().includes("api key") || errorText.toLowerCase().includes("groq")) {
+        toast.error("AI service is not configured on server. Please set GROQ_API_KEY in Supabase Edge Function secrets.");
+      }
+      const fallback = getLocalFallbackReply(userMsg.content, gymName, gymPhone);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, I'm having trouble connecting. Please WhatsApp us! 📱" },
+        { role: "assistant", content: fallback },
       ]);
     } finally {
       setLoading(false);
@@ -62,7 +98,7 @@ export default function AIChatbot() {
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
               <div>
-                <p className="text-sm font-semibold">Shapefit Gym</p>
+                <p className="text-sm font-semibold">{gymName}</p>
                 <p className="text-xs flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-success inline-block" /> Online
                 </p>

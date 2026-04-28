@@ -38,13 +38,14 @@ export default function Contact() {
     };
 
     try {
-      // ✅ Send data to the NEW leads table
-      const { error } = await supabase.from("leads").insert([leadData]);
+      const { error } = await supabase.functions.invoke("lead-capture", {
+        body: leadData,
+      });
       if (error) throw error;
 
       setSubmitted(true);
       toast.success("Enquiry sent successfully! 🙌");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Supabase Lead Error:", err);
       toast.error("Something went wrong. Please try again.");
     } finally {

@@ -38,3 +38,15 @@ export interface AttendanceRecord {
   date: string;
   status: "Present" | "Absent";
 }
+
+export interface Expense {
+  id: string;
+  businessId: string;
+  date: string;
+  category: string;
+  customCategory?: string | null;
+  amount: number;
+  paymentMethod: "Cash" | "UPI" | "Card" | "Bank Transfer" | "Other";
+  note?: string | null;
+  createdAt?: string;
+}

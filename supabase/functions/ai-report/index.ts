@@ -2,12 +2,21 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-supabase-api-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 serve(async (req) => {
   // 1. Handle CORS
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders });
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     // 2. Check API Key
@@ -18,7 +27,8 @@ serve(async (req) => {
 
     // 3. BULLETPROOF DATA EXTRACTION
     // If the frontend sends missing or weird data, this catches it instead of crashing.
-    let activeMembers = 0, alumniCount = 0, totalRevenue = 0, totalLeads = 0;
+    let activeMembers = 0, alumniCount = 0, totalRevenue = 0, totalLeads = 0, totalExpenses = 0, netProfit = 0, gymName = "Our Gym", ownerName = "Owner";
+    let expenseBreakdown: Record<string, number> = {};
     
     try {
       const body = await req.json();
@@ -26,6 +36,11 @@ serve(async (req) => {
       alumniCount = Number(body.alumniCount) || 0;
       totalRevenue = Number(body.totalRevenue) || 0;
       totalLeads = Number(body.totalLeads) || 0;
+      totalExpenses = Number(body.totalExpenses) || 0;
+      netProfit = Number(body.netProfit) || 0;
+      expenseBreakdown = body.expenseBreakdown || {};
+      gymName = body.gymName || "Our Gym";
+      ownerName = body.ownerName || "Owner";
     } catch (parseError) {
       console.warn("Warning: Could not read data from dashboard. Defaulting to zeroes.");
     }
@@ -42,13 +57,16 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a world-class business analyst for Shapefit Gym in Naini, Prayagraj. Generate a concise, professional business performance report. 
+            content: `You are a world-class business analyst for ${gymName}. Generate a concise, professional business performance report. 
             
             USE THIS REAL DATA:
             - Total Active Members: ${activeMembers}
             - Alumni (Members who left): ${alumniCount}
             - Total Revenue Logged: ₹${totalRevenue.toLocaleString("en-IN")}
+            - Total Expenses Logged: ₹${totalExpenses.toLocaleString("en-IN")}
+            - Net Profit (Revenue - Expenses): ₹${netProfit.toLocaleString("en-IN")}
             - Total Web Leads Captured: ${totalLeads}
+            - Expense Breakdown by Category: ${JSON.stringify(expenseBreakdown)}
             
             Format the report cleanly with these exact sections: 
             1. Executive Summary 
@@ -56,7 +74,7 @@ serve(async (req) => {
             3. Areas of Concern 
             4. Recommendations for Growth. 
             
-            Keep it under 300 words, do not use markdown asterisks (**), and use ALL CAPS for the section headers. Speak directly to Prashant, the owner.`,
+            Keep it under 300 words, do not use markdown asterisks (**), and use ALL CAPS for the section headers. Speak directly to ${ownerName}, the owner.`,
           },
           { role: "user", content: "Generate the business report." },
         ],
@@ -82,9 +100,12 @@ serve(async (req) => {
   } catch (e) {
     // 7. If anything fails, send the EXACT error text back to the browser so we can read it.
     const errorMessage = e instanceof Error ? e.message : "Unknown Server Error";
-    console.error("CRITICAL CRASH:", errorMessage);
+    console.error("CRITICAL CRASH in ai-report:", errorMessage, e);
     
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      type: e instanceof Error ? e.constructor.name : "UnknownError"
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

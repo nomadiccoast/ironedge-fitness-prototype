@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Sparkles, Copy, Loader2, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   postType: string;
@@ -14,44 +15,41 @@ interface Props {
   setGeneratedPost: (v: string) => void;
   postLoading: boolean;
   setPostLoading: (v: boolean) => void;
+  gymPhone?: string;
 }
 
 export default function SocialPostGenerator({
   postType, setPostType, platform, setPlatform, postContext, setPostContext,
-  generatedPost, setGeneratedPost, postLoading, setPostLoading
+  generatedPost, setGeneratedPost, postLoading, setPostLoading, gymPhone
 }: Props) {
+
+  const gymName = localStorage.getItem("gym_name") || "My Gym";
 
   const handleGenerate = async () => {
     setPostLoading(true);
     try {
-      // 🔥 Calling the Groq AI API
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
-          "Content-Type": "application/json",
+      const { data, error } = await supabase.functions.invoke("ai-social", {
+        body: {
+          postType,
+          platform,
+          context: postContext,
+          gymName,
+          gymPhone: gymPhone || "",
         },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: "You are a world-class social media manager for Shapefit Gym in Naini, Prayagraj. You write catchy, high-energy posts that drive memberships."
-            },
-            {
-              role: "user",
-              content: `Write a ${platform} post for ${postType}. Context: ${postContext}. Include relevant emojis, 5 trending hashtags, and a call to action to visit us at Mama Bhanja Talab, Naini.`
-            }
-          ],
-        }),
       });
 
-      const data = await response.json();
-      setGeneratedPost(data.choices[0].message.content);
+      if (error) {
+        throw error;
+      }
+      if (!data?.content) {
+        throw new Error("No content returned from ai-social function");
+      }
+
+      setGeneratedPost(data.content);
       toast.success("Post generated!");
     } catch (error) {
       console.error(error);
-      toast.error("AI failed to generate post.");
+      toast.error("AI failed to generate post. Please try again.");
     } finally {
       setPostLoading(false);
     }

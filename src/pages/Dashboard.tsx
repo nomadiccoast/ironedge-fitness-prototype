@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, DollarSign, TrendingUp, BarChart3, FileText, Megaphone,
-  LogOut, Menu, Bell, Sparkles, Copy, Loader2, Search, CalendarDays, UserCheck
+  LogOut, Menu, Bell, Sparkles, Copy, Loader2, Search, CalendarDays, UserCheck, Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -11,13 +11,15 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
-import type { Member, Payment, AttendanceRecord } from "@/data/members";
+import type { Member, Payment, AttendanceRecord, Expense } from "@/data/members";
 import MemberManagement from "@/components/dashboard/MemberManagement";
 import AttendanceTracker from "@/components/dashboard/AttendanceTracker";
 import RenewalAlerts from "@/components/dashboard/RenewalAlerts";
 import SocialPostGenerator from "@/components/dashboard/SocialPostGenerator";
+import AIChatbot from "@/components/chat/AIChatbot";
+import ExpensesManagement from "@/components/dashboard/ExpensesManagement";
 
-const SECTIONS = ["overview", "member-mgmt", "attendance", "leads", "revenue", "members", "analytics", "ai-reports", "social"] as const;
+const SECTIONS = ["overview", "member-mgmt", "attendance", "leads", "revenue", "expenses", "members", "analytics", "ai-reports", "social", "chatbot"] as const;
 type Section = typeof SECTIONS[number];
 
 const sidebarItems: { id: Section; label: string; icon: any }[] = [
@@ -26,9 +28,11 @@ const sidebarItems: { id: Section; label: string; icon: any }[] = [
   { id: "attendance", label: "Attendance", icon: CalendarDays },
   { id: "leads", label: "Leads", icon: Users },
   { id: "revenue", label: "Revenue", icon: DollarSign },
+  { id: "expenses", label: "Expenses", icon: Wallet },
   { id: "members", label: "Analytics", icon: TrendingUp },
   { id: "analytics", label: "Site Stats", icon: BarChart3 },
   { id: "ai-reports", label: "AI Reports", icon: FileText },
+  { id: "chatbot", label: "AI Chatbot", icon: Sparkles },
   { id: "social", label: "Social Posts", icon: Megaphone },
 ];
 
@@ -39,11 +43,6 @@ const statusColor: Record<string, string> = {
   Paid: "bg-success/20 text-success", 
   Pending: "bg-yellow-100 text-yellow-700",
 };
-
-const dailyVisitors = Array.from({ length: 30 }, (_, i) => ({
-  day: i + 1,
-  visitors: Math.round(Math.random() * 5),
-}));
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -64,32 +63,150 @@ export default function Dashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [realLeads, setRealLeads] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [gymTier, setGymTier] = useState<string>("Starter"); // Tier state
+
+  // Get gym name and owner name from localStorage
+  const gymName = localStorage.getItem("gym_name") || "My Gym";
+  const ownerName = localStorage.getItem("owner_name") || "Owner";
+  const gymPhone = localStorage.getItem("gym_phone") || "";
+
+  // Feature access based on tier
+  const hasGrowthFeatures = gymTier === 'Growth' || gymTier === 'Pro';
+  const hasProFeatures = gymTier === 'Pro';
+
+  // Dynamic greeting based on time of day
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  };
 
   useEffect(() => {
     if (localStorage.getItem("Shapefit_auth") !== "true") {
       navigate("/login");
       return;
     }
+    let tierSubscription: ReturnType<typeof supabase.channel> | null = null;
 
     const fetchDashboardData = async () => {
       try {
+        // 1. Get the current user
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // 2. Fetch gym tier from business_accounts and SUBSCRIBE to real-time changes
+        if (user) {
+          const { data: accountData, error: tierError } = await supabase
+            .from('business_accounts')
+            .select('tier, gym_name, owner, "phone no."')
+            .eq('owner_id', user.id)
+            .single();
+          
+          if (accountData?.tier) {
+            setGymTier(accountData.tier);
+          }
+          if (accountData?.gym_name) localStorage.setItem("gym_name", accountData.gym_name);
+          if (accountData?.owner) localStorage.setItem("owner_name", accountData.owner);
+          if (accountData?.["phone no."]) localStorage.setItem("gym_phone", accountData["phone no."]);
+
+          // SUBSCRIBE to real-time tier changes
+          tierSubscription = supabase
+            .channel('business_accounts_changes')
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'business_accounts',
+                filter: `owner_id=eq.${user.id}`,
+              },
+              (payload: any) => {
+                if (payload.new?.tier) {
+                  setGymTier(payload.new.tier);
+                  toast.success(`Plan updated to ${payload.new.tier}!`);
+                }
+              }
+            )
+            .subscribe();
+
+        }
+      } catch (error) {
+        console.error("Error fetching tier data:", error);
+      }
+    };
+
+    const fetchOtherData = async () => {
+      try {
         const { data: membersData } = await supabase.from("members").select("*").order("created_at", { ascending: false });
-        if (membersData) setMembers(membersData as any);
+        if (membersData) {
+          // Translate DB snake_case to React camelCase
+          const mappedMembers = membersData.map((m: any) => ({
+            ...m,
+            joinDate: m.join_date || "", // Safety fallback
+            expiryDate: m.expiry_date || "",
+            amountPaid: m.amount_paid,
+            paymentMethod: m.payment_method,
+          }));
+          setMembers(mappedMembers as any);
+        }
 
         const { data: paymentsData } = await supabase.from("payments").select("*").order("date", { ascending: false });
-        if (paymentsData) setPayments(paymentsData as any);
+        if (paymentsData) {
+          const mappedPayments = paymentsData.map((p: any) => ({
+            ...p,
+            memberName: p.member_name,
+            memberId: p.member_id,
+          }));
+          setPayments(mappedPayments as any);
+        }
 
         const { data: leadsData } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
-        if (leadsData) setRealLeads(leadsData);
+        if (leadsData) {
+          // Translate DB snake_case to React camelCase
+          const mappedLeads = leadsData.map((l: any) => ({
+            ...l,
+            status: l.status || "New", // Safety fallback
+          }));
+          setRealLeads(mappedLeads as any);
+        }
+
+        const { data: expensesData } = await supabase.from("expenses").select("*").order("date", { ascending: false });
+        if (expensesData) {
+          const mappedExpenses = expensesData.map((e: any) => ({
+            id: e.id,
+            businessId: e.business_id,
+            date: e.date,
+            category: e.category,
+            customCategory: e.custom_category,
+            amount: Number(e.amount),
+            paymentMethod: e.payment_method,
+            note: e.note,
+            createdAt: e.created_at,
+          }));
+          setExpenses(mappedExpenses as any);
+        }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       }
     };
 
     fetchDashboardData();
+    fetchOtherData();
+
+    return () => {
+      tierSubscription?.unsubscribe();
+    };
   }, [navigate]);
 
   const logout = () => { localStorage.removeItem("Shapefit_auth"); navigate("/login"); };
+
+  const handleUpgradeClick = () => {
+    window.open(
+      'https://wa.me/919278027491?text=Hi, I want to upgrade my GymOS plan',
+      '_blank'
+    );
+  };
 
   const generateReport = async () => {
   setAiLoading(true);
@@ -99,33 +216,63 @@ export default function Dashboard() {
     const { data: payData } = await supabase.from('payments').select('amount');
     const { count: leadsCountLive } = await supabase.from('leads').select('*', { count: 'exact', head: true });
     const { data: memberData } = await supabase.from('members').select('status');
+    const { data: expenseData } = await supabase.from('expenses').select('amount, category, custom_category');
 
     // 2. CALCULATE
     const totalRev = (payData || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const activeCount = (memberData || []).filter(m => m.status !== "Inactive").length;
     const alumniCount = (memberData || []).filter(m => m.status === "Inactive").length;
     const leadsCount = leadsCountLive || 0;
+    const totalExpenses = (expenseData || []).reduce((sum, e: any) => sum + (Number(e.amount) || 0), 0);
+    const netProfit = totalRev - totalExpenses;
+    const expenseBreakdown = (expenseData || []).reduce((acc: Record<string, number>, e: any) => {
+      const key = e.category === "Other" ? (e.custom_category || "Other") : e.category;
+      acc[key] = (acc[key] || 0) + (Number(e.amount) || 0);
+      return acc;
+    }, {});
 
-    console.log("FINAL DATABASE VERIFICATION:", { activeCount, alumniCount, totalRev, leadsCount });
+    console.log("FINAL DATABASE VERIFICATION:", { activeCount, alumniCount, totalRev, leadsCount, totalExpenses, netProfit });
 
     // 3. SEND TO AI
+    console.log("Invoking ai-report with:", { activeMembers: activeCount, alumniCount, totalRevenue: totalRev, totalLeads: leadsCount, totalExpenses, netProfit, gymName, ownerName });
+    
     const { data, error } = await supabase.functions.invoke("ai-report", {
       body: {
         activeMembers: activeCount,
         alumniCount: alumniCount,
         totalRevenue: totalRev,
-        totalLeads: leadsCount
+        totalLeads: leadsCount,
+        totalExpenses: totalExpenses,
+        netProfit: netProfit,
+        expenseBreakdown: expenseBreakdown,
+        gymName: gymName,
+        ownerName: ownerName
       }
     });
 
-    if (error) throw error;
+    console.log("AI Report Response:", { data, error });
+
+    if (error) {
+      console.error("AI Report Function Error Details:", {
+        message: error.message,
+        context: error.context,
+        status: error.status,
+        fullError: error
+      });
+      throw new Error(`AI Report Error: ${error.message || JSON.stringify(error)}`);
+    }
+    
+    if (!data || !data.content) {
+      throw new Error("No content returned from AI Report function. Response: " + JSON.stringify(data));
+    }
     
     setAiReport(data.content);
     toast.success("Live business report generated!");
 
   } catch (err) {
     console.error("Critical Report Error:", err);
-    toast.error("Could not sync with live database.");
+    const errorMsg = err instanceof Error ? err.message : "Could not sync with live database.";
+    toast.error(errorMsg);
   } finally {
     setAiLoading(false);
   }
@@ -146,6 +293,38 @@ export default function Dashboard() {
     return diff >= 0 && diff <= 7;
   }).length;
   const avgAttendance = members.length > 0 ? Math.round(members.reduce((s, m) => s + (m.attendance || 0), 0) / members.length) : 0;
+
+  const currentMonthLeads = useMemo(() => {
+    const key = new Date().toISOString().slice(0, 7);
+    return realLeads.filter((l) => String(l.created_at || "").startsWith(key));
+  }, [realLeads]);
+
+  const leadsByStatus = useMemo(() => {
+    const total = currentMonthLeads.length || 1;
+    const converted = currentMonthLeads.filter((l) => l.status === "Converted").length;
+    const called = currentMonthLeads.filter((l) => l.status === "Called").length;
+    const fresh = currentMonthLeads.filter((l) => l.status === "New").length;
+    return {
+      total: currentMonthLeads.length,
+      converted,
+      called,
+      fresh,
+      conversionRate: Math.round((converted / total) * 100),
+    };
+  }, [currentMonthLeads]);
+
+  const dailyLeadData = useMemo(() => {
+    const today = new Date();
+    const list: { day: string; visitors: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const count = realLeads.filter((l) => String(l.created_at || "").slice(0, 10) === key).length;
+      list.push({ day: d.getDate().toString(), visitors: count });
+    }
+    return list;
+  }, [realLeads]);
 
   // Revenue last 6 months
   const revenueData = useMemo(() => {
@@ -219,7 +398,7 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <RenewalAlerts members={members} />
+            <RenewalAlerts members={members} gymPhone={gymPhone} />
 
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-primary mb-4">Revenue — Last 6 Months</h3>
@@ -237,7 +416,7 @@ export default function Dashboard() {
         );
 
       case "member-mgmt":
-        return <MemberManagement members={members} setMembers={setMembers} payments={payments} setPayments={setPayments} />;
+        return <MemberManagement members={members} setMembers={setMembers} payments={payments} setPayments={setPayments} gymTier={gymTier} />;
 
       case "attendance":
         return <AttendanceTracker members={members} attendance={attendance} setAttendance={setAttendance} />;
@@ -333,6 +512,9 @@ export default function Dashboard() {
           </div>
         );
 
+      case "expenses":
+        return <ExpensesManagement expenses={expenses} setExpenses={setExpenses} />;
+
       case "members":
         return (
           <div className="space-y-6">
@@ -370,14 +552,14 @@ export default function Dashboard() {
         );
 
       case "analytics":
-        return (
+        return hasGrowthFeatures ? (
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Bounce Rate", value: "0%" },
-                { label: "Avg. Session", value: "0m 00s" },
-                { label: "Page Views", value: "0" },
-                { label: "Unique Visitors", value: "0" },
+                { label: "Leads This Month", value: leadsByStatus.total.toString() },
+                { label: "Converted Leads", value: leadsByStatus.converted.toString() },
+                { label: "Called Leads", value: leadsByStatus.called.toString() },
+                { label: "Conversion Rate", value: `${leadsByStatus.conversionRate}%` },
               ].map(m => (
                 <div key={m.label} className="bg-card border border-border rounded-xl p-5">
                   <p className="text-sm text-muted-foreground">{m.label}</p>
@@ -386,9 +568,9 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold text-primary mb-4">Daily Visitors — Last 30 Days</h3>
+              <h3 className="font-semibold text-primary mb-4">Daily Leads — Last 30 Days</h3>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={dailyVisitors}>
+                <BarChart data={dailyLeadData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,91%)" />
                   <XAxis dataKey="day" stroke="hsl(220,9%,46%)" fontSize={12} />
                   <YAxis stroke="hsl(220,9%,46%)" fontSize={12} />
@@ -398,12 +580,11 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
             <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold text-primary mb-4">Top Traffic Sources</h3>
+              <h3 className="font-semibold text-primary mb-4">Lead Pipeline Breakdown</h3>
               {[
-                { source: "Direct", pct: 0 },
-                { source: "Google", pct: 0 },
-                { source: "WhatsApp Referral", pct: 0 },
-                { source: "Instagram", pct: 0 },
+                { source: "New", pct: leadsByStatus.total ? Math.round((leadsByStatus.fresh / leadsByStatus.total) * 100) : 0 },
+                { source: "Called", pct: leadsByStatus.total ? Math.round((leadsByStatus.called / leadsByStatus.total) * 100) : 0 },
+                { source: "Converted", pct: leadsByStatus.total ? Math.round((leadsByStatus.converted / leadsByStatus.total) * 100) : 0 },
               ].map(t => (
                 <div key={t.source} className="flex items-center gap-3 mb-3">
                   <span className="text-sm w-36 text-foreground">{t.source}</span>
@@ -415,10 +596,20 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-10 text-center max-w-2xl mx-auto mt-10">
+            <h3 className="text-xl font-bold text-primary mb-2">Growth Plan Feature</h3>
+            <p className="text-muted-foreground mb-6">
+              Advanced Analytics is available on the Growth plan (₹3,000/month). Track detailed visitor data, traffic sources, and site performance.
+            </p>
+            <Button size="lg" className="bg-accent hover:bg-accent/90" onClick={handleUpgradeClick}>
+              Upgrade to Growth
+            </Button>
+          </div>
         );
 
       case "ai-reports":
-        return (
+        return hasGrowthFeatures ? (
           <div className="space-y-6">
             <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
@@ -441,10 +632,43 @@ export default function Dashboard() {
               {aiReport && <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap">{aiReport}</div>}
             </div>
           </div>
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-10 text-center max-w-2xl mx-auto mt-10">
+            <h3 className="text-xl font-bold text-primary mb-2">Growth Plan Feature</h3>
+            <p className="text-muted-foreground mb-6">
+              AI Business Reports are available on the Growth plan (₹3,000/month). Get AI-powered insights into your gym performance, trends, and recommendations.
+            </p>
+            <Button size="lg" className="bg-accent hover:bg-accent/90" onClick={handleUpgradeClick}>
+              Upgrade to Growth
+            </Button>
+          </div>
         );
 
       case "social":
-        return <SocialPostGenerator postType={postType} setPostType={setPostType} platform={platform} setPlatform={setPlatform} postContext={postContext} setPostContext={setPostContext} generatedPost={generatedPost} setGeneratedPost={setGeneratedPost} postLoading={postLoading} setPostLoading={setPostLoading} />;
+        return hasProFeatures ? (
+          <SocialPostGenerator postType={postType} setPostType={setPostType} platform={platform} setPlatform={setPlatform} postContext={postContext} setPostContext={setPostContext} generatedPost={generatedPost} setGeneratedPost={setGeneratedPost} postLoading={postLoading} setPostLoading={setPostLoading} gymPhone={gymPhone} />
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-10 text-center max-w-2xl mx-auto mt-10">
+            <h3 className="text-xl font-bold text-primary mb-2">Pro Plan Feature</h3>
+            <p className="text-muted-foreground mb-6">The Social Media Post Generator is available on the Pro plan (₹5,000/month).</p>
+            <Button size="lg" className="bg-accent hover:bg-accent/90" onClick={handleUpgradeClick}>
+              Upgrade to Pro
+            </Button>
+          </div>
+        );
+
+      case "chatbot":
+        return hasProFeatures ? (
+          <AIChatbot />
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-10 text-center max-w-2xl mx-auto mt-10">
+            <h3 className="text-xl font-bold text-primary mb-2">Pro Plan Feature</h3>
+            <p className="text-muted-foreground mb-6">The Hinglish AI Chatbot is available on the Pro plan (₹5,000/month). It handles member queries in Hindi and English.</p>
+            <Button size="lg" className="bg-accent hover:bg-accent/90" onClick={handleUpgradeClick}>
+              Upgrade to Pro
+            </Button>
+          </div>
+        );
     }
   };
 
@@ -452,7 +676,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex">
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground transform transition-transform lg:relative lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="p-4 border-b border-sidebar-border">
-          <span className="font-display font-bold text-lg">Shapefit</span>
+          <span className="font-display font-bold text-lg">{gymName}</span>
         </div>
         <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
           {sidebarItems.map(item => (
@@ -477,7 +701,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <button className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></button>
             <div>
-              <p className="font-semibold text-primary text-sm">Good morning, Prashant 👋</p>
+              <p className="font-semibold text-primary text-sm">{getTimeBasedGreeting()}, {ownerName} 👋</p>
               <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
           </div>

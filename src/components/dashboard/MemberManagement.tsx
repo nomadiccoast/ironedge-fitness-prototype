@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search, Plus, Download, Edit2, Trash2, X, Sparkles, Copy, Loader2, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ interface Props {
   setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
   payments: Payment[];
   setPayments: React.Dispatch<React.SetStateAction<Payment[]>>;
+  gymTier?: string; // Optional tier prop
 }
 
 const emptyMember: Omit<Member, "id" | "status" | "attendance" | "expiryDate"> = {
@@ -35,7 +36,7 @@ function calcStatus(expiryDate: string, overrideStatus?: string): Member["status
   return "Active";
 }
 
-export default function MemberManagement({ members, setMembers, payments, setPayments }: Props) {
+export default function MemberManagement({ members, setMembers, payments, setPayments, gymTier }: Props) {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -51,21 +52,68 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const [paymentModal, setPaymentModal] = useState(false);
   const [payForm, setPayForm] = useState({ amount: 1500, method: "UPI" as "Cash" | "UPI" | "Card", plan: "Monthly" as "Monthly" | "Quarterly" | "Annual", note: "" });
   const [saving, setSaving] = useState(false);
+  const [memberAttendance, setMemberAttendance] = useState<Array<{ id: string; date: string; status: string }>>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
+  // Feature access based on tier
+  const hasGrowthFeatures = gymTier === 'Growth' || gymTier === 'Pro';
+
+  const recordedByName = localStorage.getItem("owner_name") || "Owner";
+
+  const handleUpgradeClick = () => {
+    window.open(
+      'https://wa.me/919278027491?text=Hi, I want to upgrade my GymOS plan',
+      '_blank'
+    );
+  };
 
   useEffect(() => {
     const fetchEverything = async () => {
       try {
-        const { data: membersData, error: membersError } = await supabase.from("members").select("*").order("created_at", { ascending: false });
+        // --- 1. FETCH & TRANSLATE MEMBERS ---
+        const { data: membersData, error: membersError } = await supabase
+          .from("members")
+          .select("*")
+          .order("created_at", { ascending: false });
+          
         if (membersError) throw membersError;
-        if (membersData) setMembers(membersData as any);
+        
+        if (membersData) {
+          // Translate snake_case database columns to camelCase React state
+          const mappedMembers = membersData.map((dbMember: any) => ({
+            ...dbMember,
+            amountPaid: dbMember.amount_paid,
+            paymentMethod: dbMember.payment_method,
+            joinDate: dbMember.join_date,
+            expiryDate: dbMember.expiry_date,
+          }));
+          setMembers(mappedMembers as any);
+        }
 
-        const { data: paymentsData, error: paymentsError } = await supabase.from("payments").select("*").order("date", { ascending: false });
+        // --- 2. FETCH & TRANSLATE PAYMENTS ---
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from("payments")
+          .select("*")
+          .order("date", { ascending: false });
+          
         if (paymentsError) throw paymentsError;
-        if (paymentsData) setPayments(paymentsData as any);
+        
+        if (paymentsData) {
+          // Translate snake_case database columns to camelCase React state
+          const mappedPayments = paymentsData.map((dbPayment: any) => ({
+            ...dbPayment,
+            memberId: dbPayment.member_id,
+            memberName: dbPayment.member_name,
+            recordedBy: dbPayment.recorded_by,
+          }));
+          setPayments(mappedPayments as any);
+        }
+
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
+    
     fetchEverything();
   }, [setMembers, setPayments]);
 
@@ -98,11 +146,28 @@ export default function MemberManagement({ members, setMembers, payments, setPay
     
     const expiryDate = calcExpiry(form.joinDate, form.plan);
     const calculatedBalance = (form.total_fee || 0) - form.amountPaid;
+    const businessId = localStorage.getItem("business_id");
     
+    if (!businessId) {
+      toast.error("Business ID not found. Please log in again.");
+      setSaving(false);
+      return;
+    }
+
     const existingMember = members.find(m => m.id === editId);
     const finalStatus = calcStatus(expiryDate, existingMember?.status === "Inactive" ? "Inactive" : undefined);
 
     const payload = {
+      name: form.name, phone: form.phone, email: form.email, age: form.age,
+      weight: form.weight, height: form.height, plan: form.plan,
+      amount_paid: form.amountPaid, payment_method: form.paymentMethod,
+      join_date: form.joinDate, expiry_date: expiryDate, status: finalStatus,
+      total_fee: form.total_fee, balance_due: calculatedBalance, next_due_date: form.next_due_date || null,
+      business_id: businessId
+    };
+
+    // State payload with camelCase for Member type
+    const statePayload = {
       name: form.name, phone: form.phone, email: form.email, age: form.age,
       weight: form.weight, height: form.height, plan: form.plan,
       amountPaid: form.amountPaid, paymentMethod: form.paymentMethod,
@@ -114,25 +179,26 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       if (editId) {
         const { error } = await supabase.from("members" as any).update(payload).eq("id", editId);
         if (error) throw error;
-        setMembers(prev => prev.map(m => m.id === editId ? { ...m, ...payload } : m));
+        setMembers(prev => prev.map(m => m.id === editId ? { ...m, ...statePayload } : m));
         toast.success("Member updated!");
       } else {
-        const insertPayload = { ...payload, attendance: 0 };
-        const { data: rawData, error } = await supabase.from("members" as any).insert(insertPayload).select().single();
+        const insertStatePayload = { ...statePayload, attendance: 0 };
+        const { data: rawData, error } = await supabase.from("members" as any).insert(payload).select().single();
         if (error) throw error;
         
         const data = rawData as any;
-        setMembers(prev => [...prev, { ...insertPayload, id: data.id, attendance: 0 }]);
+        setMembers(prev => [...prev, { ...insertStatePayload, id: data.id }]);
 
         await supabase.from("payments" as any).insert({
-          memberId: data.id, memberName: form.name, date: form.joinDate,
-          amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recordedBy: "Prashant",
+          member_id: data.id, member_name: form.name, date: form.joinDate,
+          amount: form.amountPaid, method: form.paymentMethod, plan: form.plan, recorded_by: recordedByName,
+          business_id: businessId
         });
         
         setPayments(prev => [...prev, {
           id: `p${data.id}`, memberId: data.id, memberName: form.name,
           date: form.joinDate, amount: form.amountPaid, method: form.paymentMethod,
-          plan: form.plan, recordedBy: "Prashant",
+          plan: form.plan, recordedBy: recordedByName,
         }]);
         
         toast.success("Member added!");
@@ -244,12 +310,20 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   const addPayment = async () => {
     if (!selectedMember) return;
     setSaving(true);
+    const businessId = localStorage.getItem("business_id");
+    
+    if (!businessId) {
+      toast.error("Business ID not found. Please log in again.");
+      setSaving(false);
+      return;
+    }
+
     try {
       const paymentData = {
-        memberId: selectedMember.id, memberName: selectedMember.name,
+        member_id: selectedMember.id, member_name: selectedMember.name,
         date: new Date().toISOString().split("T")[0], amount: payForm.amount,
-        method: payForm.method, plan: payForm.plan, recordedBy: "Prashant",
-        note: payForm.note || null,
+        method: payForm.method, plan: payForm.plan, recorded_by: recordedByName,
+        note: payForm.note || null, business_id: businessId
       };
       
       const { data: rawPay, error } = await supabase.from("payments" as any).insert(paymentData).select().single();
@@ -260,7 +334,7 @@ export default function MemberManagement({ members, setMembers, payments, setPay
       const newBalanceDue = totalFee - newAmountPaid;
 
       const { error: memberError } = await supabase.from("members" as any).update({
-        amountPaid: newAmountPaid,
+        amount_paid: newAmountPaid,
         balance_due: newBalanceDue < 0 ? 0 : newBalanceDue
       }).eq("id", selectedMember.id);
       
@@ -289,6 +363,42 @@ export default function MemberManagement({ members, setMembers, payments, setPay
   };
 
   const memberPayments = selectedMember ? payments.filter(p => p.memberId === selectedMember.id) : [];
+  const attendanceThisMonth = useMemo(() => {
+    const monthKey = new Date().toISOString().slice(0, 7);
+    return memberAttendance.filter((a) => a.date.startsWith(monthKey));
+  }, [memberAttendance]);
+  const presentThisMonth = attendanceThisMonth.filter((a) => a.status === "Present").length;
+
+  useEffect(() => {
+    const fetchMemberAttendance = async () => {
+      if (!selectedMember) {
+        setMemberAttendance([]);
+        return;
+      }
+      setAttendanceLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("attendance" as any)
+          .select("*")
+          .eq("member_id", selectedMember.id)
+          .order("date", { ascending: false });
+        if (error) throw error;
+        const mapped = (data || []).map((r: any) => ({
+          id: r.id || `${r.member_id}-${r.date}`,
+          date: String(r.date || ""),
+          status: r.status || "Present",
+        }));
+        setMemberAttendance(mapped);
+      } catch (err) {
+        console.error("Failed to fetch member attendance:", err);
+        setMemberAttendance([]);
+      } finally {
+        setAttendanceLoading(false);
+      }
+    };
+
+    fetchMemberAttendance();
+  }, [selectedMember]);
 
   const statusBadge = (s: string) => {
     if (s === "Active") return "bg-success/20 text-success";
@@ -487,37 +597,88 @@ export default function MemberManagement({ members, setMembers, payments, setPay
               ))}
             </div>
 
+            {/* Attendance Visibility Block */}
+            <div className="border border-border rounded-xl p-4 mb-4">
+              <h4 className="font-semibold text-primary text-sm mb-3">Attendance Details</h4>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-secondary rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Present This Month</p>
+                  <p className="text-lg font-semibold text-primary">{presentThisMonth}</p>
+                </div>
+                <div className="bg-secondary rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Total Marked Records</p>
+                  <p className="text-lg font-semibold text-primary">{memberAttendance.length}</p>
+                </div>
+              </div>
+              {attendanceLoading ? (
+                <p className="text-sm text-muted-foreground">Loading attendance...</p>
+              ) : memberAttendance.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No attendance marked yet for this member.</p>
+              ) : (
+                <div className="max-h-40 overflow-y-auto border border-border rounded-lg">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-secondary">
+                        <th className="px-3 py-2 text-left text-muted-foreground">Date</th>
+                        <th className="px-3 py-2 text-left text-muted-foreground">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memberAttendance.slice(0, 20).map((a) => (
+                        <tr key={a.id} className="border-t border-border">
+                          <td className="px-3 py-2">{a.date}</td>
+                          <td className="px-3 py-2">{a.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             {/* AI Diet Plan Block */}
             <div className="border border-border rounded-xl p-4 mb-4">
               <h4 className="font-semibold text-primary text-sm mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-accent" /> AI Diet Plan Generator
               </h4>
-              <div className="flex gap-3 mb-3">
-                <select value={dietGoal} onChange={e => setDietGoal(e.target.value)}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-background flex-1">
-                  {["Weight Loss", "Muscle Gain", "Maintenance"].map(g => <option key={g}>{g}</option>)}
-                </select>
-                <Button onClick={() => generateDiet(selectedMember)} disabled={dietLoading} className="bg-accent hover:bg-accent/90 gap-2">
-                  {dietLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  Generate
-                </Button>
-              </div>
-              {dietLoading && (
-                <div className="space-y-2">
-                  {[1, 2, 3, 4].map(i => <div key={i} className="h-3 bg-secondary rounded animate-pulse" style={{ width: `${90 - i * 10}%` }} />)}
-                </div>
-              )}
-              {dietPlan && (
-                <div className="bg-secondary/50 rounded-lg p-4 mt-2">
-                  <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap text-xs">{dietPlan}</div>
-                  <div className="flex gap-2 mt-3">
-                    <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(dietPlan); toast.success("Copied!"); }} className="gap-1">
-                      <Copy className="h-3 w-3" /> Copy
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => sendDietWhatsApp(selectedMember.phone)} className="gap-1 text-success border-success/30">
-                      📱 Send on WhatsApp
+              {hasGrowthFeatures ? (
+                <>
+                  <div className="flex gap-3 mb-3">
+                    <select value={dietGoal} onChange={e => setDietGoal(e.target.value)}
+                      className="border border-border rounded-lg px-3 py-2 text-sm bg-background flex-1">
+                      {["Weight Loss", "Muscle Gain", "Maintenance"].map(g => <option key={g}>{g}</option>)}
+                    </select>
+                    <Button onClick={() => generateDiet(selectedMember)} disabled={dietLoading} className="bg-accent hover:bg-accent/90 gap-2">
+                      {dietLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      Generate
                     </Button>
                   </div>
+                  {dietLoading && (
+                    <div className="space-y-2">
+                      {[1, 2, 3, 4].map(i => <div key={i} className="h-3 bg-secondary rounded animate-pulse" style={{ width: `${90 - i * 10}%` }} />)}
+                    </div>
+                  )}
+                  {dietPlan && (
+                    <div className="bg-secondary/50 rounded-lg p-4 mt-2">
+                      <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap text-xs">{dietPlan}</div>
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(dietPlan); toast.success("Copied!"); }} className="gap-1">
+                          <Copy className="h-3 w-3" /> Copy
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => sendDietWhatsApp(selectedMember.phone)} className="gap-1 text-success border-success/30">
+                          📱 Send on WhatsApp
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="bg-secondary/50 rounded-lg p-6 text-center">
+                  <p className="text-sm text-muted-foreground mb-3">Generate AI-powered personalized diet plans for your members</p>
+                  <p className="text-xs text-muted-foreground mb-4">Available on Growth plan (₹3,000/month)</p>
+                  <Button size="sm" className="bg-accent hover:bg-accent/90" onClick={handleUpgradeClick}>
+                    Upgrade to Growth
+                  </Button>
                 </div>
               )}
             </div>

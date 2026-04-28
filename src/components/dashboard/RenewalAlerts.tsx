@@ -2,9 +2,12 @@ import type { Member } from "@/data/members";
 
 interface Props {
   members: Member[];
+  gymPhone?: string;
 }
 
-export default function RenewalAlerts({ members }: Props) {
+export default function RenewalAlerts({ members, gymPhone }: Props) {
+  const gymName = localStorage.getItem("gym_name") || "My Gym";
+  
   const expiringSoon = members.filter(m => {
     const diff = (new Date(m.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
     return diff >= 0 && diff <= 7;
@@ -14,7 +17,8 @@ export default function RenewalAlerts({ members }: Props) {
   });
 
   const sendReminder = (m: typeof expiringSoon[0]) => {
-    const msg = encodeURIComponent(`Hey ${m.name}! Your Shapefit membership expires in ${m.daysLeft} days. Renew now to keep your streak going 💪 Reply here or call us.`);
+    const phoneText = gymPhone ? `Call us at ${gymPhone}` : `Please contact ${gymName} support for renewal`;
+    const msg = encodeURIComponent(`Hey ${m.name}! Your ${gymName} membership expires in ${m.daysLeft} days. Renew now to keep your streak going 💪 ${phoneText}`);
     window.open(`https://wa.me/91${m.phone}?text=${msg}`, "_blank");
   };
 

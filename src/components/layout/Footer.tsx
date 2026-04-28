@@ -2,6 +2,9 @@ import { Link } from "react-router-dom";
 import { Dumbbell, Instagram, Facebook, Youtube, Phone, Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
+  const gymName = localStorage.getItem("gym_name") || "My Gym";
+  const supportNumber = "9278027491";
+
   return (
     <footer className="bg-primary text-primary-foreground">
       <div className="container py-12">
@@ -10,10 +13,10 @@ export default function Footer() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Dumbbell className="h-6 w-6 text-accent" />
-              <span className="font-display font-bold text-lg">Shapefit Fitness</span>
+              <span className="font-display font-bold text-lg">{gymName}</span>
             </div>
             <p className="text-sm text-primary-foreground/70">
-              Prayagraj's Smartest Gym — AI-powered fitness for everyone.
+              Your Smartest Gym — AI-powered fitness for everyone.
             </p>
           </div>
 
@@ -37,9 +40,9 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold mb-3">Contact</h4>
             <div className="space-y-2 text-sm text-primary-foreground/70">
-              <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> +91 99999 99999</div>
-              <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> hello@Shapefit.in</div>
-              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Civil Lines, Prayagraj, UP</div>
+              <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> +91 {supportNumber}</div>
+              <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> support@{gymName.toLowerCase().replace(/\s+/g, '')}.in</div>
+              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Prayagraj, UP</div>
             </div>
           </div>
 

@@ -12,13 +12,14 @@ const navLinks = [
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const gymName = localStorage.getItem("gym_name") || "My Gym";
 
   return (
     <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur border-b border-border">
       <div className="container flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2">
           <Dumbbell className="h-7 w-7 text-accent" />
-          <span className="font-display font-bold text-xl text-primary">Shapefit Fitness</span>
+          <span className="font-display font-bold text-xl text-primary">{gymName}</span>
         </Link>
 
         {/* Desktop */}
@@ -42,7 +43,7 @@ export default function Navbar() {
           <Link to="/login">
             <Button variant="ghost" size="sm">Dashboard</Button>
           </Link>
-          <a href="https://wa.me/919999999999" target="_blank" rel="noopener noreferrer">
+          <a href="https://wa.me/919278027491" target="_blank" rel="noopener noreferrer">
             <Button size="sm" className="bg-whatsapp hover:bg-whatsapp/90 text-white gap-2">
               <MessageCircle className="h-4 w-4" />
               Chat on WhatsApp
